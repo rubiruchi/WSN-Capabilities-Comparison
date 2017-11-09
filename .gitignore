@@ -1,0 +1,9 @@
+obj_sky/
+symbols.c
+symbols.h
+firstsim.csc
+sink.sky
+node.sky
+contiki-sky.a
+contiki-sky.map
+test.c
