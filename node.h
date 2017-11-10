@@ -4,6 +4,7 @@
 #include "contiki-lib.h"
 #include "contiki-net.h"
 #include "sys/node-id.h"
+#include "dev/cc2420/cc2420.h"
 
 #include "net/packetbuf.h"
 
@@ -24,11 +25,11 @@
 /*---------------------------------------------------------------------------*/
 #ifdef SMALLMSG
   typedef struct msg{
-    uint8_t nodeId:4; //4
+    uint8_t nodeId:4;                     //bitfields to keep size as small as possible
     uint8_t last_node:4;
-    uint8_t next_channel:5; //5
-    char round_finished:1; //1
-    char link_param:1;                 // 0 for rssi, 1 for lqi
+    uint8_t next_channel:5;
+    uint8_t round_finished:1;
+    uint8_t link_param:1;                 // 0 for rssi, 1 for lqi
     char link_data[MAX_NODES-1];
   } msg_t;
 #else
@@ -36,8 +37,8 @@ typedef struct msg{
   uint8_t nodeId:4;
   uint8_t last_node:4;
   uint8_t next_channel:5;
-  char round_finished:1;
-  char link_param:1;                 // 0 for rssi, 1 for lqi
+  uint8_t round_finished:1;
+  uint8_t link_param:1;                 // 0 for rssi, 1 for lqi
   char link_data[MAX_NODES][MAX_NODES-1];
 } msg_t;
 #endif
@@ -48,13 +49,23 @@ static struct uip_udp_conn* receive_conn;
 static uip_ip6addr_t mcast_addr;
 static uip_ip6addr_t addr;
 /*---------------------------------------------------------------------------*/
+//TODO FIX SO THAT 2D ARRAY CAN BE SENT WITH CORRECT SIZE
 static void send(uint8_t num_of_nodes){
-  printf("sending\n");
+  uint8_t size_of_msg;
+
   #ifdef SMALLMSG
-  uip_udp_packet_send(broadcast_conn, &message,(2 + num_of_nodes-1)); //5 bytes of variables + link data
+  size_of_msg = 2 + num_of_nodes-1;                 //2 bytes of variables + link data
   #else
-  uip_udp_packet_send(broadcast_conn, &message,(5 + num_of_nodes*num_of_nodes-1)); //5 bytes of variables + link data
+  size_of_msg = 2 + num_of_nodes*(num_of_nodes-1);  //2 bytes of variables + link data
   #endif
+
+  /* c will pad uneven struct sizes*/
+  if(size_of_msg%2){
+    size_of_msg = size_of_msg +1;
+  }
+
+  printf("sending\n");
+  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));  //should be size_of_msg, but doesn't work for 2D array yet
 }
 
 static void tcpip_handler();

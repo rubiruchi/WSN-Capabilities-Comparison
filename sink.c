@@ -1,6 +1,7 @@
 #include "node.h"
 #include "dev/button-sensor.h"
 #include "dev/serial-line.h"
+#include "dev/uart1.h"
 
 /*---------------------------------------------------------------------------*/
 PROCESS(sink_process, "sink process");
@@ -53,22 +54,19 @@ static void tcpip_handler(){
         }
       }
     }
-
     #endif
-
   }
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(sink_process, ev, data){
   PROCESS_BEGIN();
-
-  #ifdef COOJA
   SENSORS_ACTIVATE(button_sensor);
-  #else
+
+  uart1_set_input(serial_line_input_byte);  //should be uart0 for z1?
   serial_line_init();
-  #endif
 
   set_ip_address();
+  message.nodeId = node_id;
 
   if(!join_mcast_group()){
     printf("couldn't join multicast group\n");
@@ -78,33 +76,36 @@ PROCESS_THREAD(sink_process, ev, data){
   create_receive_conn();
   create_broadcast_conn();
 
-while(1){
-  PROCESS_WAIT_EVENT();
+  while(1){
+    PROCESS_WAIT_EVENT();
 
-#ifdef COOJA
 
-  if(ev == sensors_event && data == &button_sensor) {
-    printf("Button pressed\n");
-    message.nodeId = node_id;
-    last_node_id = 6;                                 //change to ID of last node
-    message.last_node = last_node_id;
-    message.round_finished = 0;
-    message.next_channel = 0;
-    message.link_param = 0;                           //change to 0 for RSSI, 1 for LQI
-    //memset(message.link_data,0,sizeof(message.link_data[0]) * last_node_id);
-    send(last_node_id -COOJA_IDS);
-  }
+    if(ev == sensors_event && data == &button_sensor) {
+      printf("Button pressed\n");
+      last_node_id = 5;                                 //change to ID of last node
+      message.last_node = last_node_id;
+      message.next_channel = 0;
+      message.round_finished = 0;
+      message.link_param = 0;                           //change to 0 for RSSI, 1 for LQI
+      send(last_node_id -COOJA_IDS);
+    }
 
-#else
+    //will be covered by script
+    // printf("Last node: Node id of the last node in the network\n
+    //         Starting channel/End channel: range of channels. enter 0 to only use default channel 26\n
+    //         Link param:  Enter parameters in the following way:\n <last node>,<starting channel>,<end channel>,<link param>\n");
+    if(ev == serial_line_event_message){
+      printf("received line: %s\n",(char*) data);
 
-  if(ev == serial_line_event_message){
-    printf("a serial line event, really?\n");
-  }
+      //TODO FINISH INPUT FOR MSG
 
-#endif
+
+    }
+    
+
     if(ev == tcpip_event){
       tcpip_handler();
     }
-}
+  }
   PROCESS_END();
 }

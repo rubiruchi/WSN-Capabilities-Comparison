@@ -9,7 +9,7 @@ CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 
 #CONTIKI_SOURCEFILES +=
 #PROJECT_SOURCEFILES +=
-MODULES += core/net/ipv6/multicast
+#MODULES += core/net/ipv6/multicast
 
 SMALL = 1
 CONTIKI_WITH_IPV6 = 1
