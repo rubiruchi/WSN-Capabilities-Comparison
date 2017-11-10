@@ -17,8 +17,13 @@ static void tcpip_handler(){
 
     if(received_msg.round_finished){
       printf("Node %i \n",received_msg.nodeId);
-      for(i = 0; i < last_node_id-COOJA_IDS; i++){
-        printf("%i: ",i+1+COOJA_IDS);
+      for(i = 0; i < last_node_id-COOJA_IDS-1; i++){
+        if(received_msg.nodeId > i + 1 + COOJA_IDS){
+          printf("%i: ",i+1+COOJA_IDS);
+        }else{
+          printf("%i: ",i+COOJA_IDS+2);
+        }
+
         if(received_msg.link_param == 0){
           printf("RSSI: %i\n",received_msg.link_data[i] );
         }else{
@@ -32,10 +37,16 @@ static void tcpip_handler(){
     if(received_msg.round_finished && received_msg.nodeId == 1+COOJA_IDS){
       for(i = 0; i < last_node_id-COOJA_IDS; i++){
         printf("%i \n",i+1+COOJA_IDS);
-        for(j = 0; j < last_node_id-COOJA_IDS; j++){
-          printf("%i: :",j+1+COOJA_IDS);
+        for(j = 0; j < last_node_id-COOJA_IDS-1; j++){
+          if(i +1 +COOJA_IDS > j +1 +COOJA_IDS){
+            printf("%i: ",j+1+COOJA_IDS);
+          }else{
+            printf("%i: ",j+COOJA_IDS+2);
+          }
+
+
           if(received_msg.link_param == 0){
-            printf("RSSI: %i\n",received_msg.link_data[i][j] );
+            printf("RSSI: %i\n",received_msg.link_data[i][j]);
           }else{
             printf("LQI: %i\n",received_msg.link_data[i][j] );
           }
@@ -75,13 +86,13 @@ while(1){
   if(ev == sensors_event && data == &button_sensor) {
     printf("Button pressed\n");
     message.nodeId = node_id;
-    last_node_id = 4;                                 //change to ID of last node
+    last_node_id = 6;                                 //change to ID of last node
     message.last_node = last_node_id;
     message.round_finished = 0;
-    next_channel = 0;
+    message.next_channel = 0;
     message.link_param = 0;                           //change to 0 for RSSI, 1 for LQI
-    memset(message.link_data,0,sizeof(message.link_data[0]) * last_node_id);
-    send();
+    //memset(message.link_data,0,sizeof(message.link_data[0]) * last_node_id);
+    send(last_node_id -COOJA_IDS);
   }
 
 #else
@@ -97,4 +108,3 @@ while(1){
 }
   PROCESS_END();
 }
-/*---------------------------------------------------------------------------*/

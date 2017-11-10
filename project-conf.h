@@ -5,9 +5,10 @@
 /* Change this to switch engines. Engine codes in uip-mcast6-engines.h */
 //#define UIP_MCAST6_CONF_ENGINE UIP_MCAST6_ENGINE_ROLL_TM
 
+#define SMALLMSG 1
+
 #define MAX_NODES 10
 #define COOJA 1
-
 #ifndef COOJA
 #define COOJA_IDS 0
 #else

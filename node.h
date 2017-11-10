@@ -24,21 +24,21 @@
 /*---------------------------------------------------------------------------*/
 #ifdef SMALLMSG
   typedef struct msg{
-    uint8_t nodeId;
-    uint8_t last_node;
-    uint8_t next_channel;
-    char round_finished:1;
+    uint8_t nodeId:4; //4
+    uint8_t last_node:4;
+    uint8_t next_channel:5; //5
+    char round_finished:1; //1
     char link_param:1;                 // 0 for rssi, 1 for lqi
-    char link_data[MAX_NODES];
+    char link_data[MAX_NODES-1];
   } msg_t;
 #else
 typedef struct msg{
-  uint8_t nodeId;
-  uint8_t last_node;
-  uint8_t next_channel;
+  uint8_t nodeId:4;
+  uint8_t last_node:4;
+  uint8_t next_channel:5;
   char round_finished:1;
   char link_param:1;                 // 0 for rssi, 1 for lqi
-  char link_data[MAX_NODES][MAX_NODES];
+  char link_data[MAX_NODES][MAX_NODES-1];
 } msg_t;
 #endif
 
@@ -48,9 +48,13 @@ static struct uip_udp_conn* receive_conn;
 static uip_ip6addr_t mcast_addr;
 static uip_ip6addr_t addr;
 /*---------------------------------------------------------------------------*/
-static void send(){
+static void send(uint8_t num_of_nodes){
   printf("sending\n");
-  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));
+  #ifdef SMALLMSG
+  uip_udp_packet_send(broadcast_conn, &message,(2 + num_of_nodes-1)); //5 bytes of variables + link data
+  #else
+  uip_udp_packet_send(broadcast_conn, &message,(5 + num_of_nodes*num_of_nodes-1)); //5 bytes of variables + link data
+  #endif
 }
 
 static void tcpip_handler();
