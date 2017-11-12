@@ -3,11 +3,29 @@
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
 static char up_timer_was_set,down_timer_was_set;
-static uint8_t num_of_nodes;
+static uint8_t num_of_nodes, next_channel;
 /*---------------------------------------------------------------------------*/
 PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
+  /* delete old link data*/
+static void delete_link_data(){
+  printf("deleting\n");
+  #ifdef SMALLMSG
+  memset(message.link_data,0, MAX_NODES-1);
+  #else
+  memset(message.link_data,0, MAX_NODES * MAX_NODES-1);
+  #endif
+}
+
+/*change channel for next round if neccessary */
+static void change_channel(){
+  if(next_channel != 0){
+    printf("setting channel to %i\n",next_channel);
+    cc2420_set_channel(next_channel);
+  }
+}
+/* fill measured RSSI or LQI into messages link data array*/
 static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char received_rssi, char received_lqi, uint8_t link_param){
 
   if((received_node_id -1 -COOJA_IDS) >= 0){   // do not take link data from sink node(node_id == 0)
@@ -43,9 +61,9 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
     #else
     message.link_data[node_id -1 -COOJA_IDS][received_node_id -1 -COOJA_IDS -1] = received_lqi;
     #endif
-   }
   }
- }
+}
+}
 message.last_node = last_node;
 }
 
@@ -54,6 +72,7 @@ static void tcpip_handler(){
     msg_t received_msg = *(msg_t*) uip_appdata;
 
     num_of_nodes = received_msg.last_node - COOJA_IDS;
+    next_channel = received_msg.next_channel;
 
     #ifndef SMALLMSG
     /*copy received data */
@@ -66,7 +85,6 @@ static void tcpip_handler(){
     #endif
 
     if(!received_msg.round_finished){
-      printf("round not finished\n");
       //  printf("Package from: %i , RSSI: %d , LQI: %d , sizeof msg: %d \n",received_msg.nodeId,
       //  packetbuf_attr(PACKETBUF_ATTR_RSSI),
       //  packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
@@ -77,17 +95,18 @@ static void tcpip_handler(){
         packetbuf_attr(PACKETBUF_ATTR_RSSI),
         packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
         received_msg.link_param);
-        printf("filled link data\n");
+
         /* upwards sending*/
         if(received_msg.nodeId == node_id -1){
           message.round_finished =  0;
           send(num_of_nodes);
-          printf("from node id -1\n");
 
           /* case last node hast to initiate downwards sending */
           if(received_msg.last_node == node_id){
             message.round_finished = 1;
             send(num_of_nodes);
+            delete_link_data();
+            change_channel(next_channel);
           }
 
           /* case last node isn't reachable and penultimate node hast to initiate downwards sending */
@@ -114,19 +133,8 @@ static void tcpip_handler(){
         if(received_msg.nodeId == node_id +1){
           message.round_finished = 1;
           send(num_of_nodes);
-
-          /*change channel for next round if neccessary */
-          if(received_msg.next_channel != 0){
-            printf("setting channel to %i\n",received_msg.next_channel);
-            cc2420_set_channel(received_msg.next_channel);
-          }
-
-          /* delete old link data*/
-          #ifdef SMALLMSG
-          memset(message.link_data,0, MAX_NODES);
-          #else
-          memset(message.link_data,0, MAX_NODES * MAX_NODES);
-          #endif
+          delete_link_data();
+          change_channel(next_channel);
         }
 
         /* lost link detection downwards sending*/
@@ -136,7 +144,8 @@ static void tcpip_handler(){
           down_timer_was_set = 1;
         }
       }
-    }
+
+    } //uip_newdata
   }
   /*---------------------------------------------------------------------------*/
 
@@ -179,6 +188,8 @@ static void tcpip_handler(){
           message.round_finished = 1;
           printf("lost link detected. will continue sending downwards\n");
           send(num_of_nodes);
+          delete_link_data();
+          change_channel(next_channel);
         }
       }
 

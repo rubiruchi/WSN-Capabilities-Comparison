@@ -93,7 +93,9 @@ PROCESS_THREAD(sink_process, ev, data){
     //will be covered by script
     // printf("Last node: Node id of the last node in the network\n
     //         Starting channel/End channel: range of channels. enter 0 to only use default channel 26\n
-    //         Link param:  Enter parameters in the following way:\n <last node>,<starting channel>,<end channel>,<link param>\n");
+    //         Link param:  0 for RSSI, 1 for LQI;
+    //         Number of rounds: how many rounds should be done
+    //         Enter parameters in the following way:\n <last node>,<starting channel>,<end channel>,<link param>, <number of rounds>\n");
     if(ev == serial_line_event_message){
       printf("received line: %s\n",(char*) data);
 
@@ -101,7 +103,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
 
     }
-    
+
 
     if(ev == tcpip_event){
       tcpip_handler();
