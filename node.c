@@ -2,7 +2,7 @@
 
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
-static char timer_was_set;
+static char up_timer_was_set,down_timer_was_set;
 static uint8_t num_of_nodes;
 /*---------------------------------------------------------------------------*/
 PROCESS(node_process, "node process");
@@ -66,7 +66,7 @@ static void tcpip_handler(){
     #endif
 
     if(!received_msg.round_finished){
-
+      printf("round not finished\n");
       //  printf("Package from: %i , RSSI: %d , LQI: %d , sizeof msg: %d \n",received_msg.nodeId,
       //  packetbuf_attr(PACKETBUF_ATTR_RSSI),
       //  packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
@@ -77,11 +77,12 @@ static void tcpip_handler(){
         packetbuf_attr(PACKETBUF_ATTR_RSSI),
         packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
         received_msg.link_param);
-
+        printf("filled link data\n");
         /* upwards sending*/
         if(received_msg.nodeId == node_id -1){
           message.round_finished =  0;
           send(num_of_nodes);
+          printf("from node id -1\n");
 
           /* case last node hast to initiate downwards sending */
           if(received_msg.last_node == node_id){
@@ -91,10 +92,9 @@ static void tcpip_handler(){
 
           /* case last node isn't reachable and penultimate node hast to initiate downwards sending */
           if(received_msg.last_node -1 == node_id){
-            message.round_finished = 1;
             printf("started counter for last\n");
             etimer_set(&lost_link_timer, CLOCK_SECOND*1);
-            timer_was_set = 1;
+            down_timer_was_set = 1;
           }
         } // message from node_id-1
 
@@ -102,10 +102,10 @@ static void tcpip_handler(){
         if(received_msg.nodeId == node_id -2){
           printf("started counter for upwards\n");
           etimer_set(&lost_link_timer, CLOCK_SECOND*1);
-          timer_was_set = 1;
+          up_timer_was_set = 1;
           //if penultimate node isn't reachable, last node still finishes round
           if(received_msg.last_node == node_id){
-            message.round_finished = 1;
+            down_timer_was_set = 1;
           }
         }
 
@@ -117,23 +117,23 @@ static void tcpip_handler(){
 
           /*change channel for next round if neccessary */
           if(received_msg.next_channel != 0){
+            printf("setting channel to %i\n",received_msg.next_channel);
             cc2420_set_channel(received_msg.next_channel);
           }
 
           /* delete old link data*/
           #ifdef SMALLMSG
-          memset(message.link_data,0,sizeof(message.link_data[0]) * MAX_NODES);
+          memset(message.link_data,0, MAX_NODES);
           #else
-          memset(message.link_data,0,sizeof(message.link_data[0]) * MAX_NODES * MAX_NODES);
+          memset(message.link_data,0, MAX_NODES * MAX_NODES);
           #endif
         }
 
         /* lost link detection downwards sending*/
         if(received_msg.nodeId == node_id +2){
-          message.round_finished = 1;
           printf("started counter for downwards\n");
           etimer_set(&lost_link_timer, CLOCK_SECOND*1);
-          timer_was_set = 1;
+          down_timer_was_set = 1;
         }
       }
     }
@@ -143,7 +143,8 @@ static void tcpip_handler(){
   PROCESS_THREAD(node_process, ev, data){
     PROCESS_BEGIN();
 
-    timer_was_set = 0;
+    up_timer_was_set = 0;
+    down_timer_was_set = 0;
     message.nodeId = node_id;
 
     set_ip_address();
@@ -161,13 +162,24 @@ static void tcpip_handler(){
 
       if(ev == tcpip_event){
         etimer_stop(&lost_link_timer);
-        timer_was_set = 0;
+        up_timer_was_set = 0;
+        down_timer_was_set = 0;
         tcpip_handler();
       }
 
-      if(etimer_expired(&lost_link_timer) && timer_was_set){
-        printf("lost link detected. will continue sending\n");
-        send(num_of_nodes);
+      if(etimer_expired(&lost_link_timer) && (up_timer_was_set || down_timer_was_set)){
+        if(up_timer_was_set){
+          up_timer_was_set = 0;
+          message.round_finished = 0;
+          printf("lost link detected. will continue sending upwards\n");
+          send(num_of_nodes);
+        }
+        if(down_timer_was_set){
+          down_timer_was_set = 0;
+          message.round_finished = 1;
+          printf("lost link detected. will continue sending downwards\n");
+          send(num_of_nodes);
+        }
       }
 
     }
