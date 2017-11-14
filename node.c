@@ -1,5 +1,4 @@
 #include "node.h"
-
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
 static char up_timer_was_set,down_timer_was_set;
@@ -10,7 +9,6 @@ AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
   /* delete old link data*/
 static void delete_link_data(){
-  printf("deleting\n");
   #ifdef SMALLMSG
   memset(message.link_data,0, MAX_NODES-1);
   #else
@@ -71,11 +69,23 @@ static void tcpip_handler(){
   if(uip_newdata()){
     msg_t received_msg = *(msg_t*) uip_appdata;
 
+    if(node_id > received_msg.last_node){
+      return;
+    }
+
+    // printf("badsynch:%lu\n",rimestats.badsynch);
+    // printf("badcrc :%lu\n",rimestats.badcrc);
+    printf("badsynch:%i\n",RIMESTATS_GET(badsynch));
+    printf("badcrc :%i\n",RIMESTATS_GET(badcrc));
+
+
     num_of_nodes = received_msg.last_node - COOJA_IDS;
     next_channel = received_msg.next_channel;
 
-    #ifndef SMALLMSG
     /*copy received data */
+    message.next_channel = next_channel;
+    message.link_param = received_msg.link_param;
+    #ifndef SMALLMSG
     int i;
     for(i = 0; i < num_of_nodes;i++){
       if((i+1+COOJA_IDS) != node_id){
@@ -85,10 +95,12 @@ static void tcpip_handler(){
     #endif
 
     if(!received_msg.round_finished){
-      //  printf("Package from: %i , RSSI: %d , LQI: %d , sizeof msg: %d \n",received_msg.nodeId,
-      //  packetbuf_attr(PACKETBUF_ATTR_RSSI),
-      //  packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
-      //  uip_len);
+       printf("Package from: %i, lastnode: %i, nxtchan: %i, rndfin: %i, linkpar: %i\n",
+       received_msg.nodeId,
+       received_msg.last_node,
+       received_msg.next_channel,
+       received_msg.round_finished,
+       received_msg.link_param);
 
       fill_link_data(received_msg.nodeId,
         received_msg.last_node,

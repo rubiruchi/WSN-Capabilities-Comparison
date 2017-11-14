@@ -6,14 +6,19 @@
 //#define UIP_MCAST6_CONF_ENGINE UIP_MCAST6_ENGINE_ROLL_TM
 
 //#define SMALLMSG 1
-
+#define DEFAULT_CHANNEL 26
 #define MAX_NODES 10
 #define COOJA 1
+
+
 #ifndef COOJA
 #define COOJA_IDS 0
 #else
 #define COOJA_IDS  1
 #endif
+
+// #undef RIMESTATS_CONF_ENABLED
+// #define RIMESTATS_CONF_ENABLED 1
 
 #undef UIP_CONF_IPV6_RPL
 #undef UIP_CONF_ND6_SEND_RA
@@ -43,8 +48,8 @@
 #undef NETSTACK_RDC_CHANNEL_CHECKRATE
 #define NETSTACK_RDC_CHANNEL_CHECKRATE      32
 #undef RF_CHANNEL
-#define RF_CHANNEL                          26
+#define RF_CHANNEL                          DEFAULT_CHANNEL
 #undef CC2420_CONF_CHANNEL
-#define CC2420_CONF_CHANNEL                 26
+#define CC2420_CONF_CHANNEL                 DEFAULT_CHANNEL
 
 #endif /* PROJECT_CONF_H_ */
