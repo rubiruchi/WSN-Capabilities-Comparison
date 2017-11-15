@@ -73,10 +73,10 @@ static void tcpip_handler(){
       return;
     }
 
-    // printf("badsynch:%lu\n",rimestats.badsynch);
-    // printf("badcrc :%lu\n",rimestats.badcrc);
-    printf("badsynch:%i\n",RIMESTATS_GET(badsynch));
-    printf("badcrc :%i\n",RIMESTATS_GET(badcrc));
+    // printf("badsynch:%lu\n",RIMESTATS_GET(badsynch));
+    // printf("badcrc :%lu\n",RIMESTATS_GET(badcrc));
+    // printf("toolong:%lu\n",RIMESTATS_GET(toolong));
+    // printf("tooshort :%lu\n",RIMESTATS_GET(tooshort));
 
 
     num_of_nodes = received_msg.last_node - COOJA_IDS;
@@ -95,12 +95,12 @@ static void tcpip_handler(){
     #endif
 
     if(!received_msg.round_finished){
-       printf("Package from: %i, lastnode: %i, nxtchan: %i, rndfin: %i, linkpar: %i\n",
-       received_msg.nodeId,
-       received_msg.last_node,
-       received_msg.next_channel,
-       received_msg.round_finished,
-       received_msg.link_param);
+      //  printf("Package from: %i, lastnode: %i, nxtchan: %i, rndfin: %i, linkpar: %i\n",
+      //  received_msg.nodeId,
+      //  received_msg.last_node,
+      //  received_msg.next_channel,
+      //  received_msg.round_finished,
+      //  received_msg.link_param);
 
       fill_link_data(received_msg.nodeId,
         received_msg.last_node,

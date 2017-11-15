@@ -19,10 +19,12 @@ static void switch_channel(){
     if(next_channel <= end_channel){
       cc2420_set_channel(next_channel);
       next_channel++;
-    }else if(next_channel == end_channel+1){ // if this switch is the last for this round
-      if(number_of_rounds-1 != 0){           // if this is not the last round
+    }
+    if(next_channel == end_channel+1){ // if this switch is the last for this round
+      if(number_of_rounds-1 != 1){           // if this is not the last round
         next_channel = starting_channel;
       }else{                                 // if this is the last round
+        printf("setting chan to default\n");
         next_channel = DEFAULT_CHANNEL;
       }
     }
@@ -105,6 +107,7 @@ PROCESS_THREAD(sink_process, ev, data){
   create_broadcast_conn();
 
   while(1){
+    cc2420_set_channel(DEFAULT_CHANNEL);
     PROCESS_WAIT_EVENT();
 
 
@@ -123,7 +126,7 @@ PROCESS_THREAD(sink_process, ev, data){
     //         Starting channel/End channel: range of channels. enter 0 to only use default channel 26\n
     //         Link param:  0 for RSSI, 1 for LQI\n
     //         Number of rounds: how many rounds should be done\n
-             printf("Enter parameters in the following way:\n <last node>,<starting channel>,<end channel>,<link param>,<number of rounds>\n");
+    printf("Enter parameters in the following way:\n <last node>,<starting channel>,<end channel>,<link param>,<number of rounds>\n");
     if(ev == serial_line_event_message){
       printf("received line: %s\n",(char*) data);
       char* str_ptr = (char*) data;
@@ -159,6 +162,19 @@ PROCESS_THREAD(sink_process, ev, data){
       message.round_finished = 0;
       next_channel = starting_channel;
 
+      /* if using default channel */
+      if(starting_channel == 0 && end_channel == 0){
+        starting_channel = DEFAULT_CHANNEL;
+        end_channel = DEFAULT_CHANNEL;
+        next_channel = 0;
+      }
+      /* if channel switching*/
+      if(end_channel != starting_channel){
+        int diff = end_channel+1 - starting_channel;     //+1 because e.g. 24 to 26 are 3 channels not 2
+        number_of_rounds = number_of_rounds * diff +1;
+      }
+
+
       printf("last_node_id : %d\n",message.last_node);
       printf("starting_channel: %d\n",starting_channel);
       printf("end_channel: %d\n",end_channel);
@@ -167,7 +183,7 @@ PROCESS_THREAD(sink_process, ev, data){
     }
 
     while(number_of_rounds){
-      printf("number_of_rounds: %i\n",number_of_rounds);
+      printf("round: %i\n",number_of_rounds);
       message.next_channel = next_channel;
       send(last_node_id -COOJA_IDS);
       etimer_set(&round_timer,CLOCK_SECOND*5);

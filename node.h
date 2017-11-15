@@ -19,7 +19,7 @@
 
 #include "dev/leds.h"
 
-//#include "net/rime/rimestats.h"
+#include "net/rime/rimestats.h"
 
 /*---------------------------------------------------------------------------*/
 #define UDP_BROADCAST_PORT 5678      // UDP port of broadcast connection
@@ -68,11 +68,9 @@ static void send(uint8_t num_of_nodes){
 
   printf("sending\n");
   uip_udp_packet_send(broadcast_conn, &message, sizeof(message));  //should be size_of_msg, but doesn't work for 2D array yet
-  // printf("sendingdrop:%lu\n",rimestats.sendingdrop);
-  // printf("contentiondrop:%lu\n",rimestats.contentiondrop);
-  RIMESTATS_ADD(sendingdrop);
-  printf("sendingdrop:%i\n",RIMESTATS_GET(sendingdrop));
-  printf("contentiondrop:%i\n",RIMESTATS_GET(contentiondrop));
+
+  // printf("sendingdropI:%lu\n",RIMESTATS_GET(sendingdrop));
+  // printf("contentiondropI:%lu\n",RIMESTATS_GET(contentiondrop));
 }
 
 static void tcpip_handler();
