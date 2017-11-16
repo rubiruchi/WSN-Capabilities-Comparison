@@ -65,8 +65,16 @@ static void send(uint8_t num_of_nodes){
   if(size_of_msg%2){
     size_of_msg = size_of_msg +1;
   }
-
   printf("sending\n");
+  // printf("sending %i Bytes\n",size_of_msg);
+  // int i;
+  // char* msgptr = (char*) &message;
+  // printf("sendingmsg: ");
+  // for(i = 0;i < 21;i++){
+  //   printf(" %i ",*msgptr);
+  //   msgptr++;
+  // }
+  // printf("\n");
   uip_udp_packet_send(broadcast_conn, &message, sizeof(message));  //should be size_of_msg, but doesn't work for 2D array yet
 
   // printf("sendingdropI:%lu\n",RIMESTATS_GET(sendingdrop));

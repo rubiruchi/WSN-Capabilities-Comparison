@@ -13,24 +13,9 @@ static uint8_t last_node_id;
 static struct etimer round_timer;
 static int number_of_rounds;
 static uint8_t starting_channel,next_channel,end_channel;
+static uint8_t rounds_failed;
+static uint8_t round_finished;
 /*---------------------------------------------------------------------------*/
-static void switch_channel(){
-  if(starting_channel != end_channel){     // if channels should be switched at all
-    if(next_channel <= end_channel){
-      cc2420_set_channel(next_channel);
-      next_channel++;
-    }
-    if(next_channel == end_channel+1){ // if this switch is the last for this round
-      if(number_of_rounds-1 != 1){           // if this is not the last round
-        next_channel = starting_channel;
-      }else{                                 // if this is the last round
-        printf("setting chan to default\n");
-        next_channel = DEFAULT_CHANNEL;
-      }
-    }
-  }
-}
-
 static void tcpip_handler(){
   if(uip_newdata()){
     msg_t received_msg = *(msg_t*) uip_appdata;
@@ -39,9 +24,11 @@ static void tcpip_handler(){
     #ifdef SMALLMSG
 
     if(received_msg.round_finished){
-      etimer_stop(&round_timer);
-      switch_channel();
-      number_of_rounds--;
+      if(received_msg.nodeId == node_id+1){
+        round_finished = 1;
+        number_of_rounds--;
+        cc2420_set_channel(next_channel);
+      }
 
       printf("Node %i \n",received_msg.nodeId);
       for(i = 0; i < last_node_id-COOJA_IDS-1; i++){
@@ -62,9 +49,9 @@ static void tcpip_handler(){
     #else
     int j;
     if(received_msg.round_finished && received_msg.nodeId == 1+COOJA_IDS){
-      etimer_stop(&round_timer);
-      switch_channel();
+      round_finished = 1;
       number_of_rounds--;
+      cc2420_set_channel(next_channel);
 
       for(i = 0; i < last_node_id-COOJA_IDS; i++){
         printf("%i \n",i+1+COOJA_IDS);
@@ -106,10 +93,12 @@ PROCESS_THREAD(sink_process, ev, data){
   create_receive_conn();
   create_broadcast_conn();
 
-  while(1){
-    cc2420_set_channel(DEFAULT_CHANNEL);
-    PROCESS_WAIT_EVENT();
+  rounds_failed = 0;
 
+  while(1){
+    printf("Enter parameters in the following way:\n <last node>,<channel>,<link param>,<number of rounds>\n");
+    cc2420_set_channel(DEFAULT_CHANNEL);
+    PROCESS_WAIT_EVENT_UNTIL(ev == sensors_event || ev == serial_line_event_message);
 
     if(ev == sensors_event && data == &button_sensor) {
       printf("Button pressed\n");
@@ -121,19 +110,13 @@ PROCESS_THREAD(sink_process, ev, data){
       number_of_rounds = 2;
     }
 
-    //will be covered by script
-    // printf("Last node: Node id of the last node in the network\n
-    //         Starting channel/End channel: range of channels. enter 0 to only use default channel 26\n
-    //         Link param:  0 for RSSI, 1 for LQI\n
-    //         Number of rounds: how many rounds should be done\n
-    printf("Enter parameters in the following way:\n <last node>,<starting channel>,<end channel>,<link param>,<number of rounds>\n");
     if(ev == serial_line_event_message){
       printf("received line: %s\n",(char*) data);
       char* str_ptr = (char*) data;
       char* comma_ptr = &(*str_ptr);
 
       int i;
-      for(i = 0; i < 5; i++){
+      for(i = 0; i < 4; i++){
         while(*comma_ptr != ',' && *comma_ptr != '\0'){
           comma_ptr++;
         }
@@ -141,17 +124,15 @@ PROCESS_THREAD(sink_process, ev, data){
 
         switch(i){
           case 0: last_node_id = atoi(str_ptr);
-                  break;
-          case 1: starting_channel = atoi(str_ptr);
-                  break;
-          case 2: end_channel = atoi(str_ptr);
-                  break;
-          case 3: message.link_param = atoi(str_ptr);
-                  break;
-          case 4: number_of_rounds = atoi(str_ptr);
-                  break;
+          break;
+          case 1: next_channel = atoi(str_ptr);
+          break;
+          case 2: message.link_param = atoi(str_ptr);
+          break;
+          case 3: number_of_rounds = atoi(str_ptr);
+          break;
           default: printf("something went wrong while parsing input\n");
-                  break;
+          break;
         }
 
         comma_ptr++;
@@ -160,20 +141,15 @@ PROCESS_THREAD(sink_process, ev, data){
 
       message.last_node = last_node_id;
       message.round_finished = 0;
-      next_channel = starting_channel;
 
       /* if using default channel */
-      if(starting_channel == 0 && end_channel == 0){
-        starting_channel = DEFAULT_CHANNEL;
-        end_channel = DEFAULT_CHANNEL;
-        next_channel = 0;
+      if(next_channel == 0){
+        next_channel = DEFAULT_CHANNEL;
       }
       /* if channel switching*/
-      if(end_channel != starting_channel){
-        int diff = end_channel+1 - starting_channel;     //+1 because e.g. 24 to 26 are 3 channels not 2
-        number_of_rounds = number_of_rounds * diff +1;
+      if(next_channel != 0 && next_channel != 26){
+        number_of_rounds = number_of_rounds +1;
       }
-
 
       printf("last_node_id : %d\n",message.last_node);
       printf("starting_channel: %d\n",starting_channel);
@@ -182,25 +158,42 @@ PROCESS_THREAD(sink_process, ev, data){
       printf("num of rounds: %d\n",number_of_rounds);
     }
 
+    /* send rounds */
     while(number_of_rounds){
       printf("round: %i\n",number_of_rounds);
-      message.next_channel = next_channel;
+      if(number_of_rounds == 1){
+        message.next_channel = DEFAULT_CHANNEL;
+      }else{
+        message.next_channel = next_channel;
+      }
       send(last_node_id -COOJA_IDS);
       etimer_set(&round_timer,CLOCK_SECOND*5);
+      round_finished = 0;
 
+      /* receive round */
       while(1){
-      PROCESS_WAIT_EVENT();
-      if(ev == tcpip_event){
-        tcpip_handler();
+        PROCESS_WAIT_EVENT();
+        if(ev == tcpip_event){
+          tcpip_handler();
+          if(round_finished){
+            break;  //to send next rounds init msg
+          }
+
+        }else if(etimer_expired(&round_timer)){ //will expire after 5s or by stop() when round completes
+          rounds_failed++;
+          break; //to resend current rounds init msg
+        }
       }
-      if(etimer_expired(&round_timer)){ //will expire after 5s or by stop() when round completes
-        break;
+
+      if(rounds_failed == 4){
+        printf("emergency channel reset\n");
+        cc2420_set_channel(DEFAULT_CHANNEL);
+        rounds_failed = 0;
       }
-    }
 
-    }
+    }//while num of rounds
+    printf("finished\n");
+  } // while 1
 
-
-  }
   PROCESS_END();
 }

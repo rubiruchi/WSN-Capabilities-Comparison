@@ -1,6 +1,7 @@
 #include "node.h"
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
+static struct etimer emergency_timer;
 static char up_timer_was_set,down_timer_was_set;
 static uint8_t num_of_nodes, next_channel;
 /*---------------------------------------------------------------------------*/
@@ -12,7 +13,7 @@ static void delete_link_data(){
   #ifdef SMALLMSG
   memset(message.link_data,0, MAX_NODES-1);
   #else
-  memset(message.link_data,0, MAX_NODES * MAX_NODES-1);
+  memset(message.link_data,0, MAX_NODES * (MAX_NODES-1));
   #endif
 }
 
@@ -62,6 +63,14 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
   }
 }
 }
+// int i;
+// char* msgptr = (char*) &message;
+// printf("mymsg: ");
+// for(i = 0;i < 21;i++){
+//   printf(" %i ",*msgptr);
+//   msgptr++;
+// }
+// printf("\n");
 message.last_node = last_node;
 }
 
@@ -101,6 +110,8 @@ static void tcpip_handler(){
       //  received_msg.next_channel,
       //  received_msg.round_finished,
       //  received_msg.link_param);
+
+      printf("received %i Bytes\n",uip_len);
 
       fill_link_data(received_msg.nodeId,
         received_msg.last_node,
@@ -182,6 +193,7 @@ static void tcpip_handler(){
       PROCESS_WAIT_EVENT();
 
       if(ev == tcpip_event){
+        etimer_set(&emergency_timer,CLOCK_SECOND*20);
         etimer_stop(&lost_link_timer);
         up_timer_was_set = 0;
         down_timer_was_set = 0;
@@ -203,6 +215,12 @@ static void tcpip_handler(){
           delete_link_data();
           change_channel(next_channel);
         }
+      }
+
+      if(etimer_expired(&emergency_timer)){
+        printf("emergency reset\n");
+        cc2420_set_channel(DEFAULT_CHANNEL);
+        etimer_reset(&emergency_timer);
       }
 
     }
