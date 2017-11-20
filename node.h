@@ -25,58 +25,30 @@
 #define UDP_BROADCAST_PORT 5678      // UDP port of broadcast connection
 #define UDP_IP_BUF    ((struct uip_udpip_hdr* ) &uip_buf[UIP_LLH_LEN])
 /*---------------------------------------------------------------------------*/
-#ifdef SMALLMSG
-  typedef struct msg{
-    uint8_t nodeId:4;                     //bitfields to keep size as small as possible
-    uint8_t last_node:4;
-    uint8_t next_channel:5;
-    uint8_t round_finished:1;
-    uint8_t link_param:1;                 // 0 for rssi, 1 for lqi
-    char link_data[MAX_NODES-1];
-  } msg_t;
-#else
 typedef struct msg{
-  uint8_t nodeId:4;
+  uint8_t node_id:4;                     //bitfields to keep size as small as possible
   uint8_t last_node:4;
   uint8_t next_channel:5;
-  uint8_t round_finished:1;
-  uint8_t link_param:1;                 // 0 for rssi, 1 for lqi
-  char link_data[MAX_NODES][MAX_NODES-1];
+  uint8_t next_txpower:5;
+  uint8_t link_param:2;                 // 0 for rssi, 1 for lqi, 2 for dropped
+  char link_data[MAX_NODES-1];
 } msg_t;
-#endif
 
 static msg_t message;
 static struct uip_udp_conn* broadcast_conn;
 static struct uip_udp_conn* receive_conn;
 static uip_ip6addr_t mcast_addr;
 static uip_ip6addr_t addr;
+static int  next_channel, next_txpower;
 /*---------------------------------------------------------------------------*/
-//TODO FIX SO THAT 2D ARRAY CAN BE SENT WITH CORRECT SIZE
 static void send(uint8_t num_of_nodes){
-  uint8_t size_of_msg;
-
-  #ifdef SMALLMSG
-  size_of_msg = 2 + num_of_nodes-1;                 //2 bytes of variables + link data
-  #else
-  size_of_msg = 2 + num_of_nodes*(num_of_nodes-1);  //2 bytes of variables + link data
-  #endif
-
-  /* c will pad uneven struct sizes*/
-  if(size_of_msg%2){
-    size_of_msg = size_of_msg +1;
-  }
-  printf("sending\n");
-  // printf("sending %i Bytes\n",size_of_msg);
-  // int i;
-  // char* msgptr = (char*) &message;
-  // printf("sendingmsg: ");
-  // for(i = 0;i < 21;i++){
-  //   printf(" %i ",*msgptr);
-  //   msgptr++;
-  // }
-  // printf("\n");
-  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));  //should be size_of_msg, but doesn't work for 2D array yet
-
+  printf("sending: %i, lastnode: %i, nxtchan: %i, nxttx: %i, linkpar: %i\n",
+  message.node_id,
+  message.last_node,
+  message.next_channel,
+  message.next_txpower,
+  message.link_param);
+  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));
   // printf("sendingdropI:%lu\n",RIMESTATS_GET(sendingdrop));
   // printf("contentiondropI:%lu\n",RIMESTATS_GET(contentiondrop));
 }
@@ -101,13 +73,67 @@ static void set_ip_address(){
 
 static uip_ds6_maddr_t* join_mcast_group(void){
   /*
-   * IPHC will use stateless multicast compression for this destination
-   * (M=1, DAC=0), with 32 inline bits (1E 89 AB CD)
-   */
+  * IPHC will use stateless multicast compression for this destination
+  * (M=1, DAC=0), with 32 inline bits (1E 89 AB CD)
+  */
   uip_ip6addr(&mcast_addr, 0xFF01,0,0,0,0,0,0x89,0xABCD);
 
   return uip_ds6_maddr_add(&mcast_addr);
 }
+
+/* print link data of a message */
+static void print_link_data(msg_t* msg){
+  int i;
+  printf("Node %i \n",msg->node_id);
+  for(i = 0; i < msg->last_node -COOJA_IDS; i++){
+    if(msg->node_id > i + COOJA_IDS){
+      printf("%i: ",i+COOJA_IDS);
+    }else{
+      printf("%i: ",i+COOJA_IDS+1);
+    }
+
+    if(msg->link_param == 0){
+      printf("RSSI: %i\n",msg->link_data[i] );
+    }else if(msg->link_param == 1){
+      printf("LQI: %i\n",msg->link_data[i] );
+    } else if(msg->link_param == 2){
+      printf("Dropped: %i\n",msg->link_data[i] );
+    }
+  }
+}
+
+/* fill measured RSSI, LQI, or dropped counter into link data array*/
+static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char received_rssi, char received_lqi, uint8_t link_param){
+
+  /* RSSI */
+  if(link_param == 0){
+    if(node_id > received_node_id){
+      message.link_data[received_node_id -COOJA_IDS] = received_rssi;   // -COOJA_IDS: cooja IDs start at 1 instead of 0;
+    }else{
+      message.link_data[received_node_id -COOJA_IDS -1] = received_rssi;  //additional -1: Ignore "own" space in array
+    }
+
+    /* LQI */
+  }else if(link_param == 1){
+    if(node_id > received_node_id){
+      message.link_data[received_node_id -COOJA_IDS] = received_lqi;
+    }else{
+      message.link_data[received_node_id -COOJA_IDS -1] = received_lqi;
+    }
+
+    /* Dropped */
+  } else if(link_param == 2){
+    int count = RIMESTATS_GET(badsynch) + RIMESTATS_GET(badcrc) + RIMESTATS_GET(toolong) + RIMESTATS_GET(tooshort);
+    if(node_id > received_node_id){
+      message.link_data[received_node_id -COOJA_IDS] = count;
+    }else{
+      message.link_data[received_node_id -COOJA_IDS -1] = count;
+    }
+  }
+
+  message.last_node = last_node;
+}
+
 /*---------------------------------------------------------------------------*/
 
 #endif

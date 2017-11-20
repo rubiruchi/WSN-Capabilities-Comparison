@@ -2,76 +2,28 @@
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
 static struct etimer emergency_timer;
-static char up_timer_was_set,down_timer_was_set;
-static uint8_t num_of_nodes, next_channel;
+static char timer_was_set;
+static uint8_t num_of_nodes;
 /*---------------------------------------------------------------------------*/
 PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
   /* delete old link data*/
 static void delete_link_data(){
-  #ifdef SMALLMSG
   memset(message.link_data,0, MAX_NODES-1);
-  #else
-  memset(message.link_data,0, MAX_NODES * (MAX_NODES-1));
-  #endif
 }
 
-/*change channel for next round if neccessary */
-static void change_channel(){
+/*change channel and/or txpower for next round if necessary */
+static void prep_next_round(){
   if(next_channel != 0){
     printf("setting channel to %i\n",next_channel);
     cc2420_set_channel(next_channel);
   }
-}
-/* fill measured RSSI or LQI into messages link data array*/
-static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char received_rssi, char received_lqi, uint8_t link_param){
 
-  if((received_node_id -1 -COOJA_IDS) >= 0){   // do not take link data from sink node(node_id == 0)
-
-    /* RSSI */
-    if(link_param == 0){
-      if(node_id > received_node_id){ //-1: Array Index(nodes start at 1); -COOJA_IDS: cooja IDs start at 2 instead of 1;
-        #ifdef SMALLMSG
-        message.link_data[received_node_id-1-COOJA_IDS] = received_rssi;
-        #else
-        message.link_data[node_id-1-COOJA_IDS][received_node_id -1 -COOJA_IDS] = received_rssi;
-        #endif
-      }else{                         //additional -1: Ignore "own" space in array to avoid diagonal of 0
-      #ifdef SMALLMSG
-      message.link_data[received_node_id -1 -COOJA_IDS -1] = received_rssi;
-      #else
-      message.link_data[node_id -1 -COOJA_IDS][received_node_id -1 -COOJA_IDS -1] = received_rssi;
-      #endif
-    }
-
-  }else{
-
-    /* LQI */
-    if(node_id > received_node_id){ //-1: Array Index; -COOJA_IDS: cooja IDs start at 1 instead of 0;
-      #ifdef SMALLMSG
-      message.link_data[received_node_id -1 -COOJA_IDS] = received_lqi;
-      #else
-      message.link_data[node_id -1 -COOJA_IDS][received_node_id -1 -COOJA_IDS] = received_lqi;
-      #endif
-    }else{                          //additional -1: Ignore "own" space in array to avoid diagonal of 0
-    #ifdef SMALLMSG
-    message.link_data[received_node_id -1 -COOJA_IDS -1] = received_lqi;
-    #else
-    message.link_data[node_id -1 -COOJA_IDS][received_node_id -1 -COOJA_IDS -1] = received_lqi;
-    #endif
+  if(next_txpower != 0){
+    printf("setting txpower to %i\n", next_txpower);
+    cc2420_set_txpower(next_txpower);
   }
-}
-}
-// int i;
-// char* msgptr = (char*) &message;
-// printf("mymsg: ");
-// for(i = 0;i < 21;i++){
-//   printf(" %i ",*msgptr);
-//   msgptr++;
-// }
-// printf("\n");
-message.last_node = last_node;
 }
 
 static void tcpip_handler(){
@@ -82,91 +34,47 @@ static void tcpip_handler(){
       return;
     }
 
+    /* indicates that a new round has started */
+    if(message.last_node    != received_msg.last_node    ||
+       message.next_channel != received_msg.next_channel ||
+       message.next_txpower != received_msg.next_txpower ||
+       message.link_param   != received_msg.link_param){
+         delete_link_data();
+       }
+
     // printf("badsynch:%lu\n",RIMESTATS_GET(badsynch));
     // printf("badcrc :%lu\n",RIMESTATS_GET(badcrc));
     // printf("toolong:%lu\n",RIMESTATS_GET(toolong));
     // printf("tooshort :%lu\n",RIMESTATS_GET(tooshort));
 
+    //print_link_data(&received_msg);
 
     num_of_nodes = received_msg.last_node - COOJA_IDS;
     next_channel = received_msg.next_channel;
-
-    /*copy received data */
+    next_txpower = received_msg.next_txpower;
     message.next_channel = next_channel;
+    message.next_txpower = next_txpower;
     message.link_param = received_msg.link_param;
-    #ifndef SMALLMSG
-    int i;
-    for(i = 0; i < num_of_nodes;i++){
-      if((i+1+COOJA_IDS) != node_id){
-        memcpy(&message.link_data[i][0],&received_msg.link_data[i][0], num_of_nodes -1);
-      }
-    }
-    #endif
 
-    if(!received_msg.round_finished){
-      //  printf("Package from: %i, lastnode: %i, nxtchan: %i, rndfin: %i, linkpar: %i\n",
-      //  received_msg.nodeId,
-      //  received_msg.last_node,
-      //  received_msg.next_channel,
-      //  received_msg.round_finished,
-      //  received_msg.link_param);
-
-      printf("received %i Bytes\n",uip_len);
-
-      fill_link_data(received_msg.nodeId,
+      fill_link_data(received_msg.node_id,
         received_msg.last_node,
         packetbuf_attr(PACKETBUF_ATTR_RSSI),
         packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
         received_msg.link_param);
 
         /* upwards sending*/
-        if(received_msg.nodeId == node_id -1){
-          message.round_finished =  0;
+        if(received_msg.node_id == node_id -1){
           send(num_of_nodes);
-
-          /* case last node hast to initiate downwards sending */
-          if(received_msg.last_node == node_id){
-            message.round_finished = 1;
-            send(num_of_nodes);
-            delete_link_data();
-            change_channel(next_channel);
-          }
-
-          /* case last node isn't reachable and penultimate node hast to initiate downwards sending */
-          if(received_msg.last_node -1 == node_id){
-            printf("started counter for last\n");
-            etimer_set(&lost_link_timer, CLOCK_SECOND*1);
-            down_timer_was_set = 1;
-          }
-        } // message from node_id-1
+          prep_next_round();
+        }
 
         /* lost link detection upwards sending*/
-        if(received_msg.nodeId == node_id -2){
-          printf("started counter for upwards\n");
-          etimer_set(&lost_link_timer, CLOCK_SECOND*1);
-          up_timer_was_set = 1;
-          //if penultimate node isn't reachable, last node still finishes round
-          if(received_msg.last_node == node_id){
-            down_timer_was_set = 1;
-          }
+        if(received_msg.node_id < node_id-1){
+          int wait_time = (node_id - received_msg.node_id);
+          printf("started counter with %ims\n",200*wait_time);
+          etimer_set(&lost_link_timer, (CLOCK_SECOND/5) * wait_time); //TODO test if sufficient time
+          timer_was_set = 1;
         }
-
-      }else{                      //if round is finished
-        /* downwards */
-        if(received_msg.nodeId == node_id +1){
-          message.round_finished = 1;
-          send(num_of_nodes);
-          delete_link_data();
-          change_channel(next_channel);
-        }
-
-        /* lost link detection downwards sending*/
-        if(received_msg.nodeId == node_id +2){
-          printf("started counter for downwards\n");
-          etimer_set(&lost_link_timer, CLOCK_SECOND*1);
-          down_timer_was_set = 1;
-        }
-      }
 
     } //uip_newdata
   }
@@ -175,9 +83,14 @@ static void tcpip_handler(){
   PROCESS_THREAD(node_process, ev, data){
     PROCESS_BEGIN();
 
-    up_timer_was_set = 0;
-    down_timer_was_set = 0;
-    message.nodeId = node_id;
+    timer_was_set = 0;
+
+    message.node_id = node_id;
+    message.last_node    = 0;
+    message.next_channel = 0;
+    message.next_txpower = 0;
+    message.link_param   = 0;
+    delete_link_data();
 
     set_ip_address();
 
@@ -195,31 +108,21 @@ static void tcpip_handler(){
       if(ev == tcpip_event){
         etimer_set(&emergency_timer,CLOCK_SECOND*20);
         etimer_stop(&lost_link_timer);
-        up_timer_was_set = 0;
-        down_timer_was_set = 0;
+        timer_was_set = 0;
         tcpip_handler();
       }
 
-      if(etimer_expired(&lost_link_timer) && (up_timer_was_set || down_timer_was_set)){
-        if(up_timer_was_set){
-          up_timer_was_set = 0;
-          message.round_finished = 0;
-          printf("lost link detected. will continue sending upwards\n");
+      if(etimer_expired(&lost_link_timer) && timer_was_set){
+          timer_was_set = 0;
+          printf("lost link detected. will continue sending\n");
           send(num_of_nodes);
-        }
-        if(down_timer_was_set){
-          down_timer_was_set = 0;
-          message.round_finished = 1;
-          printf("lost link detected. will continue sending downwards\n");
-          send(num_of_nodes);
-          delete_link_data();
-          change_channel(next_channel);
-        }
+          prep_next_round();
       }
 
       if(etimer_expired(&emergency_timer)){
         printf("emergency reset\n");
         cc2420_set_channel(DEFAULT_CHANNEL);
+        cc2420_set_txpower(DEFAULT_TX_POWER);
         etimer_reset(&emergency_timer);
       }
 

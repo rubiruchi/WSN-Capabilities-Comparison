@@ -7,6 +7,7 @@
 
 //#define SMALLMSG 1
 #define DEFAULT_CHANNEL 26
+#define DEFAULT_TX_POWER 31
 #define MAX_NODES 10
 #define COOJA 1
 
