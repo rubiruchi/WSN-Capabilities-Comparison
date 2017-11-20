@@ -57,8 +57,6 @@ PROCESS_THREAD(sink_process, ev, data){
 
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
   while(1){
-    cc2420_set_channel(DEFAULT_CHANNEL);
-    cc2420_set_txpower(DEFAULT_TX_POWER);
     PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
 
     if(ev == serial_line_event_message){
@@ -90,13 +88,6 @@ PROCESS_THREAD(sink_process, ev, data){
         str_ptr = comma_ptr;
       }
 
-      if(next_channel == 26){
-        next_channel = 0;
-      }
-      if(next_txpower == 31){
-        next_txpower = 0;
-      }
-
       /* first round to set nodes to right channel || txpower*/
       if((next_channel != 0 && next_channel != 26) || (next_txpower != 0 && next_txpower != 31) ){
         number_of_rounds = number_of_rounds +1;
@@ -111,11 +102,6 @@ PROCESS_THREAD(sink_process, ev, data){
     /* send rounds */
     while(number_of_rounds){
       printf("rounds left: %i\n",number_of_rounds);
-      if(number_of_rounds == 1){
-        message.next_channel = DEFAULT_CHANNEL;
-        message.next_txpower = DEFAULT_TX_POWER;
-      }
-
       send(last_node_id -COOJA_IDS);
       etimer_set(&round_timer,CLOCK_SECOND*5);
       round_finished = 0;
