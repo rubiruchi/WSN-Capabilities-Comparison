@@ -1,24 +1,26 @@
-node.h - contains multicast initialization, message struct and send method for normal nodes and the sink node.
+node.h - contains all basic functions for normal nodes and the sink node.
 node.c - contains code for normal nodes
-sink.c - contains code for sink nodes
+sink.c - contains code for sink node
 
 Node IDs:
--SINK NODES should always have NODE ID 0 (or at least the LOWEST id in the network)
--NORMAL NODES should always have UNIQUE NODE IDs in ASCENDING order.
+-SINK NODE should always have NODE ID 0 (or at least the lowest id in the network)
+-NORMAL NODES should always have unique NODE IDs in ASCENDING order.
 
 Node placement:
--The assumption is that the is always a connection between nodes in the order of their node ids (so 0-1, 1-2, 2-3, ...)
+-The assumption is that the is at least one connection between nodes in the order of their node ids (0-1, 1-2, 2-3, ...)
 -Each node sends a broadcast message once it has received a message from the node before it.
+- The last node in the network should have a connection to the sink node
 
-Communication:
--The nodes are sending all the link information back to one sink in one packet.
--Define SMALLMSG in project_config to switch to each node broadcasting only own data at the end of the round. (assumes multiple sinks)
-
--MAX_NODES is currently set to 10 in the project-config  (cannot exceed 11 without SMALLMSG due to buffersize restrictions)
 _________________________________________________________________________
 For Cooja Simulation:
 - possible adjust contiki path in Makefile is correct
 
 - make sure COOJA is defined in project-conf.h
-- adjust last_node_id in the sink.c process
-- press button of sink node to start one round
+- open serial line input window of the sink node
+- Enter parameters the following way: <last node>,<channel>,<txpower>,<linkparameter>,<number of rounds>
+
+<last node>:        the node id of the last node in the network
+<channel>:          the channel you want to send on (11-26)
+<txpower>:          the transmisson power you want to send with (1-31)
+<linkparameter>:    the parameter you want to measure (0 for RSSI, 1 for LQI, 2 for number of dropped packets)
+<number of rounds>: the number of measurement rounds
