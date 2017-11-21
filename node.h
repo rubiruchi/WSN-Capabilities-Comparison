@@ -84,7 +84,7 @@ static uip_ds6_maddr_t* join_mcast_group(void){
 /* print link data of a message */
 static void print_link_data(msg_t* msg){
   int i;
-  printf("Node %i \n",msg->node_id);
+  printf("Node %i, Chan: %i, TXPow: %i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
   for(i = 0; i < msg->last_node -COOJA_IDS; i++){
     if(msg->node_id > i + COOJA_IDS){
       printf("%i: ",i+COOJA_IDS);
@@ -132,6 +132,19 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
   }
 
   message.last_node = last_node;
+}
+
+/*change channel and/or txpower for next round if necessary */
+static void prep_next_round(){
+  if(next_channel != 0 && (cc2420_get_channel() != next_channel)){
+    printf("setting channel to %i\n",next_channel);
+    cc2420_set_channel(next_channel);
+  }
+
+  if(next_txpower != 0 && (cc2420_get_txpower() != next_channel)){
+    printf("setting txpower to %i\n", next_txpower);
+    cc2420_set_txpower(next_txpower);
+  }
 }
 
 /*---------------------------------------------------------------------------*/

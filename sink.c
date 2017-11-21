@@ -28,9 +28,7 @@ static void tcpip_handler(){
       if(received_msg.node_id == last_node_id){
         number_of_rounds--;
         round_finished = 1;
-        if(next_channel != 0){
-          cc2420_set_channel(next_channel);
-        }
+        prep_next_round();
       }
      print_link_data(&received_msg);
   }

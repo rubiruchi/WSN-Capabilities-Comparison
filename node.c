@@ -13,19 +13,6 @@ static void delete_link_data(){
   memset(message.link_data,0, MAX_NODES-1);
 }
 
-/*change channel and/or txpower for next round if necessary */
-static void prep_next_round(){
-  if(next_channel != 0){
-    printf("setting channel to %i\n",next_channel);
-    cc2420_set_channel(next_channel);
-  }
-
-  if(next_txpower != 0){
-    printf("setting txpower to %i\n", next_txpower);
-    cc2420_set_txpower(next_txpower);
-  }
-}
-
 static void tcpip_handler(){
   if(uip_newdata()){
     msg_t received_msg = *(msg_t*) uip_appdata;
@@ -71,8 +58,8 @@ static void tcpip_handler(){
         /* lost link detection upwards sending*/
         if(received_msg.node_id < node_id-1){
           int wait_time = (node_id - received_msg.node_id);
-          printf("started counter with %ims\n",500*wait_time);
-          etimer_set(&lost_link_timer, (CLOCK_SECOND/2) * wait_time); //TODO test if sufficient time
+          printf("started counter with %ims\n",200*wait_time);
+          etimer_set(&lost_link_timer, (CLOCK_SECOND/5) * wait_time); //TODO test if sufficient time
           timer_was_set = 1;
         }
 
