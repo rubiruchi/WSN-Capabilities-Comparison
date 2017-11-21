@@ -5,7 +5,6 @@
 /* Change this to switch engines. Engine codes in uip-mcast6-engines.h */
 //#define UIP_MCAST6_CONF_ENGINE UIP_MCAST6_ENGINE_ROLL_TM
 
-//#define SMALLMSG 1
 #define DEFAULT_CHANNEL 26
 #define DEFAULT_TX_POWER 31
 #define MAX_NODES 10
@@ -18,8 +17,9 @@
 #define COOJA_IDS  1
 #endif
 
-// #undef RIMESTATS_CONF_ENABLED
- #define RIMESTATS_CONF_ENABLED 1
+#define RIMESTATS_CONF_ENABLED 1
+
+
 
 #undef UIP_CONF_IPV6_RPL
 #undef UIP_CONF_ND6_SEND_RA

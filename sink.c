@@ -25,12 +25,13 @@ static void tcpip_handler(){
       packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
       received_msg.link_param);
 
+      print_link_data(&received_msg);
+
       if(received_msg.node_id == last_node_id){
         number_of_rounds--;
         round_finished = 1;
         prep_next_round();
       }
-     print_link_data(&received_msg);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -121,7 +122,7 @@ PROCESS_THREAD(sink_process, ev, data){
       }
 
       if(rounds_failed == 4){
-        printf("emergency channel/txpower reset\n");
+        printf("emergency channel&txpower reset\n");
         cc2420_set_channel(DEFAULT_CHANNEL);
         cc2420_set_txpower(DEFAULT_TX_POWER);
         rounds_failed = 0;

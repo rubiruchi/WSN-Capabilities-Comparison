@@ -41,18 +41,6 @@ static uip_ip6addr_t mcast_addr;
 static uip_ip6addr_t addr;
 static int  next_channel, next_txpower;
 /*---------------------------------------------------------------------------*/
-static void send(uint8_t num_of_nodes){
-  printf("sending: %i, lastnode: %i, nxtchan: %i, nxttx: %i, linkpar: %i\n",
-  message.node_id,
-  message.last_node,
-  message.next_channel,
-  message.next_txpower,
-  message.link_param);
-  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));
-  // printf("sendingdropI:%lu\n",RIMESTATS_GET(sendingdrop));
-  // printf("contentiondropI:%lu\n",RIMESTATS_GET(contentiondrop));
-}
-
 static void tcpip_handler();
 
 static void create_broadcast_conn(){
@@ -72,13 +60,13 @@ static void set_ip_address(){
 }
 
 static uip_ds6_maddr_t* join_mcast_group(void){
-  /*
-  * IPHC will use stateless multicast compression for this destination
-  * (M=1, DAC=0), with 32 inline bits (1E 89 AB CD)
-  */
   uip_ip6addr(&mcast_addr, 0xFF01,0,0,0,0,0,0x89,0xABCD);
-
   return uip_ds6_maddr_add(&mcast_addr);
+}
+
+/* delete old link data*/
+static void delete_link_data(){
+  memset(message.link_data, 0, MAX_NODES-1);
 }
 
 /* print link data of a message */
@@ -102,6 +90,21 @@ static void print_link_data(msg_t* msg){
   }
 }
 
+/* print message, broadcast message, delete message*/
+static void send(uint8_t num_of_nodes){
+  // printf("sending: %i, lastnode: %i, nxtchan: %i, nxttx: %i, linkpar: %i\n",
+  // message.node_id,
+  // message.last_node,
+  // message.next_channel,
+  // message.next_txpower,
+  // message.link_param);
+  print_link_data(&message);
+  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));
+  delete_link_data();
+  // printf("sendingdropI:%lu\n",RIMESTATS_GET(sendingdrop));
+  // printf("contentiondropI:%lu\n",RIMESTATS_GET(contentiondrop));
+}
+
 /* fill measured RSSI, LQI, or dropped counter into link data array*/
 static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char received_rssi, char received_lqi, uint8_t link_param){
 
@@ -123,7 +126,8 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
 
     /* Dropped */
   } else if(link_param == 2){
-    int count = RIMESTATS_GET(badsynch) + RIMESTATS_GET(badcrc) + RIMESTATS_GET(toolong) + RIMESTATS_GET(tooshort);
+    int count = RIMESTATS_GET(badsynch) + RIMESTATS_GET(badcrc) + RIMESTATS_GET(toolong) + RIMESTATS_GET(tooshort) +
+    RIMESTATS_GET(sendingdrop) + RIMESTATS_GET(contentiondrop);
     if(node_id > received_node_id){
       message.link_data[received_node_id -COOJA_IDS] = count;
     }else{
