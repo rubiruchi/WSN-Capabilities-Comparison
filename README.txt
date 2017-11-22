@@ -3,19 +3,17 @@ node.c - contains code for normal nodes
 sink.c - contains code for sink node
 
 Node IDs:
--SINK NODE should always have NODE ID 0 (or at least the lowest id in the network)
+-SINK NODE should always have NODE ID 1 (or at least the lowest id in the network, but not 0)
 -NORMAL NODES should always have unique NODE IDs in ASCENDING order.
 
 Node placement:
--The assumption is that the is at least one connection between nodes in the order of their node ids (0-1, 1-2, 2-3, ...)
+-The assumption is that the is at least one connection between nodes in the order of their node ids (1-2, 2-3, ...)
 -Each node sends a broadcast message once it has received a message from the node before it.
 - The last node in the network should have a connection to the sink node
 
 _________________________________________________________________________
 For Cooja Simulation:
-- possible adjust contiki path in Makefile is correct
 
-- make sure COOJA is defined in project-conf.h
 - open serial line input window of the sink node
 - Enter parameters the following way: <last node>,<channel>,<txpower>,<linkparameter>,<number of rounds>
 

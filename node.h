@@ -72,16 +72,13 @@ static void delete_link_data(){
 /* print link data of a message */
 static void print_link_data(msg_t* msg){
   int i;
-  #ifdef COOJA
-  printf("Node:%i, Chan:%i, TXPow:%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
-  #else
   printf("%i,%i,%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
-  #endif
-  for(i = 0; i < msg->last_node -COOJA_IDS; i++){
-    if(msg->node_id > i + COOJA_IDS){
-      printf("%i:",i+COOJA_IDS);
+
+  for(i = 0; i < msg->last_node -1; i++){
+    if(msg->node_id > i + 1){
+      printf("%i:",i+1);
     }else{
-      printf("%i:",i+COOJA_IDS+1);
+      printf("%i:",i+2);
     }
 
     if(msg->link_param == 0){
@@ -95,7 +92,7 @@ static void print_link_data(msg_t* msg){
 }
 
 /* print message, broadcast message, delete message*/
-static void send(uint8_t num_of_nodes){
+static void send(){
   // printf("sending: %i, lastnode: %i, nxtchan: %i, nxttx: %i, linkpar: %i\n",
   // message.node_id,
   // message.last_node,
@@ -116,17 +113,17 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
   /* RSSI */
   if(link_param == 0){
     if(node_id > received_node_id){
-      message.link_data[received_node_id -COOJA_IDS] = received_rssi;   // -COOJA_IDS: cooja IDs start at 1 instead of 0;
+      message.link_data[received_node_id -1] = received_rssi;   // node IDs start at 1 instead of 0;
     }else{
-      message.link_data[received_node_id -COOJA_IDS -1] = received_rssi;  //additional -1: Ignore "own" space in array
+      message.link_data[received_node_id -2] = received_rssi;  //additional -1: Ignore "own" space in array
     }
 
     /* LQI */
   }else if(link_param == 1){
     if(node_id > received_node_id){
-      message.link_data[received_node_id -COOJA_IDS] = received_lqi;
+      message.link_data[received_node_id -1] = received_lqi;
     }else{
-      message.link_data[received_node_id -COOJA_IDS -1] = received_lqi;
+      message.link_data[received_node_id -2] = received_lqi;
     }
 
     /* Dropped */
@@ -134,9 +131,9 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
     int count = RIMESTATS_GET(badsynch) + RIMESTATS_GET(badcrc) + RIMESTATS_GET(toolong) + RIMESTATS_GET(tooshort) +
     RIMESTATS_GET(sendingdrop) + RIMESTATS_GET(contentiondrop);
     if(node_id > received_node_id){
-      message.link_data[received_node_id -COOJA_IDS] = count;
+      message.link_data[received_node_id -1] = count;
     }else{
-      message.link_data[received_node_id -COOJA_IDS -1] = count;
+      message.link_data[received_node_id -2] = count;
     }
   }
 

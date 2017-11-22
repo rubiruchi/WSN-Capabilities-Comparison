@@ -3,7 +3,6 @@
 static struct etimer lost_link_timer;
 static struct etimer emergency_timer;
 static char timer_was_set;
-static uint8_t num_of_nodes;
 /*---------------------------------------------------------------------------*/
 PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
@@ -24,7 +23,6 @@ static void tcpip_handler(){
         delete_link_data();
       }
 
-      num_of_nodes = received_msg.last_node - COOJA_IDS;
       next_channel = received_msg.next_channel;
       next_txpower = received_msg.next_txpower;
       message.next_channel = next_channel;
@@ -41,7 +39,7 @@ static void tcpip_handler(){
 
       /* upwards sending*/
       if(received_msg.node_id == node_id -1){
-        send(num_of_nodes);
+        send();
         prep_next_round();
       }
 
@@ -80,7 +78,6 @@ static void tcpip_handler(){
       create_broadcast_conn();
 
       leds_on(LEDS_GREEN);
-      leds_on(LEDS_BLUE);
 
       while(1){
         PROCESS_WAIT_EVENT();
@@ -95,7 +92,7 @@ static void tcpip_handler(){
         if(etimer_expired(&lost_link_timer) && timer_was_set){
           timer_was_set = 0;
           printf("lost link detected. will continue sending\n");
-          send(num_of_nodes);
+          send();
           prep_next_round();
         }
 

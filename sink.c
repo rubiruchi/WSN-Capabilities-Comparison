@@ -26,6 +26,7 @@ static void tcpip_handler(){
       print_link_data(&received_msg);
 
       if(received_msg.node_id == last_node_id){
+        rounds_failed = 0;
         number_of_rounds--;
         round_finished = 1;
         prep_next_round();
@@ -35,8 +36,11 @@ static void tcpip_handler(){
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(sink_process, ev, data){
   PROCESS_BEGIN();
-
-  uart1_set_input(serial_line_input_byte);  //should be uart0 for z1?
+  #if TARGET == z1
+  uart1_set_input(serial_line_input_byte);
+  #else
+  uart1_set_input(serial_line_input_byte);
+  #endif
   serial_line_init();
 
   set_ip_address();
@@ -53,6 +57,7 @@ PROCESS_THREAD(sink_process, ev, data){
   rounds_failed = 0;
 
   leds_on(LEDS_GREEN);
+  leds_on(LEDS_BLUE);
 
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
   while(1){
@@ -100,7 +105,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
     /* send rounds */
     while(number_of_rounds){
-      send(last_node_id -COOJA_IDS);
+      send();
       etimer_set(&round_timer,CLOCK_SECOND*5);
       round_finished = 0;
 
@@ -129,6 +134,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
     }//while num of rounds
     printf("measurement finished\n");
+    delete_link_data();
   } // while 1
 
   PROCESS_END();
