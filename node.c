@@ -79,6 +79,9 @@ static void tcpip_handler(){
       create_receive_conn();
       create_broadcast_conn();
 
+      leds_on(LEDS_GREEN);
+      leds_on(LEDS_BLUE);
+
       while(1){
         PROCESS_WAIT_EVENT();
 

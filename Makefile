@@ -2,7 +2,7 @@ CONTIKI_PROJECT = node sink
 
 all: $(CONTIKI_PROJECT)
 
-CONTIKI = /home/user/contiki
+CONTIKI = /home/${USER}/contiki
 
 CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 #CFLAGS += -DUIP_CONF_ND6_SEND_NS=1

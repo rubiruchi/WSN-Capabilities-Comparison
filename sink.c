@@ -1,9 +1,7 @@
 #include "node.h"
-#include "dev/button-sensor.h"
 #include "dev/serial-line.h"
 #include "dev/uart1.h"
 #include <stdlib.h>
-
 
 /*---------------------------------------------------------------------------*/
 PROCESS(sink_process, "sink process");
@@ -54,6 +52,8 @@ PROCESS_THREAD(sink_process, ev, data){
 
   rounds_failed = 0;
 
+  leds_on(LEDS_GREEN);
+
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
   while(1){
     PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
@@ -80,7 +80,7 @@ PROCESS_THREAD(sink_process, ev, data){
                   break;
           case 4: number_of_rounds = atoi(str_ptr);
                   break;
-          default: printf("something went wrong while parsing input\n");
+          default: printf("ERROR while parsing input\n");
                   break;
         }
         comma_ptr++;
@@ -100,7 +100,6 @@ PROCESS_THREAD(sink_process, ev, data){
 
     /* send rounds */
     while(number_of_rounds){
-      printf("rounds left: %i\n",number_of_rounds);
       send(last_node_id -COOJA_IDS);
       etimer_set(&round_timer,CLOCK_SECOND*5);
       round_finished = 0;

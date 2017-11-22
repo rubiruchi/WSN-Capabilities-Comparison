@@ -72,20 +72,24 @@ static void delete_link_data(){
 /* print link data of a message */
 static void print_link_data(msg_t* msg){
   int i;
-  printf("Node %i, Chan: %i, TXPow: %i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
+  #ifdef COOJA
+  printf("Node:%i, Chan:%i, TXPow:%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
+  #else
+  printf("%i,%i,%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
+  #endif
   for(i = 0; i < msg->last_node -COOJA_IDS; i++){
     if(msg->node_id > i + COOJA_IDS){
-      printf("%i: ",i+COOJA_IDS);
+      printf("%i:",i+COOJA_IDS);
     }else{
-      printf("%i: ",i+COOJA_IDS+1);
+      printf("%i:",i+COOJA_IDS+1);
     }
 
     if(msg->link_param == 0){
-      printf("RSSI: %i\n",msg->link_data[i] );
+      printf("RSSI:%i\n",msg->link_data[i] );
     }else if(msg->link_param == 1){
-      printf("LQI: %i\n",msg->link_data[i] );
+      printf("LQI:%i\n",msg->link_data[i] );
     } else if(msg->link_param == 2){
-      printf("Dropped: %i\n",msg->link_data[i] );
+      printf("Dropped:%i\n",msg->link_data[i] );
     }
   }
 }
@@ -98,6 +102,7 @@ static void send(uint8_t num_of_nodes){
   // message.next_channel,
   // message.next_txpower,
   // message.link_param);
+  leds_toggle(LEDS_RED);
   print_link_data(&message);
   uip_udp_packet_send(broadcast_conn, &message, sizeof(message));
   delete_link_data();
@@ -141,12 +146,10 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
 /*change channel and/or txpower for next round if necessary */
 static void prep_next_round(){
   if(next_channel != 0 && (cc2420_get_channel() != next_channel)){
-    printf("setting channel to %i\n",next_channel);
     cc2420_set_channel(next_channel);
   }
 
   if(next_txpower != 0 && (cc2420_get_txpower() != next_channel)){
-    printf("setting txpower to %i\n", next_txpower);
     cc2420_set_txpower(next_txpower);
   }
 }
