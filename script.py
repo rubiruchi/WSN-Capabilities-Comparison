@@ -39,7 +39,7 @@ for config in configurations:
     first_round = True
     checklist = range(1,number_of_nodes+1)
     line = get_untagged_input()
-    while not line == 'measurement finished':
+    while not line == 'measurement finished\n':
 
         #who reports this link data set?
         if "," in line:
@@ -71,21 +71,26 @@ for config in configurations:
 
         if line == 'round finished\n':
             #first round is only complete if all nodes report back, so checklist has to be empty
-            if (first_round and not checklist) or not first_round:
+            if first_round and not checklist:
                 sys.stdout.write("first round ok. continuing\n")
                 first_round = False
                 process.stdin.write('continue\n')
-            else:
+            elif first_round and checklist:
                 checklist = range(1,number_of_nodes+1)
                 sys.stdout.write("resend first round\n")
                 process.stdin.write('resend\n')
 
+        if line == 'round failed\n':
+            first_round = True
 
-sys.stdout.write("MEASUREMENT FINISHED\n")
 
-if not os.path.exists(DIRECTORY):
-    os.makedirs(DIRECTORY)
+if not os.path.exists(DIRECTORY_PATH):
+    os.makedirs(DIRECTORY_PATH)
 
 for node in node_measurements:
-    sys.stdout.write(node)
-    #filename = "Node "+str(node)
+    platform = ""
+    if len(sys.argv) > 1:
+        platform = sys.argv[1]
+    filename = platform+"_"+str(node)
+    with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+        json.dump(node_measurements[node],f)
