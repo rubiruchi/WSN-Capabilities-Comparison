@@ -72,13 +72,13 @@ static void delete_link_data(){
 /* print link data of a message */
 static void print_link_data(msg_t* msg){
   int i;
-  printf("%i,%i,%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
+  printf("NODE$%i,%i,%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
 
   for(i = 0; i < msg->last_node -1; i++){
     if(msg->node_id > i + 1){
-      printf("%i:",i+1);
+      printf("NODE$%i:",i+1);
     }else{
-      printf("%i:",i+2);
+      printf("NODE$%i:",i+2);
     }
 
     if(msg->link_param == 0){

@@ -3,6 +3,7 @@
 static struct etimer lost_link_timer;
 static struct etimer emergency_timer;
 static char timer_was_set;
+static int last_node_id;
 /*---------------------------------------------------------------------------*/
 PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
@@ -23,6 +24,7 @@ static void tcpip_handler(){
         delete_link_data();
       }
 
+      last_node_id = received_msg.last_node;
       next_channel = received_msg.next_channel;
       next_txpower = received_msg.next_txpower;
       message.next_channel = next_channel;
@@ -46,8 +48,8 @@ static void tcpip_handler(){
         /* lost link detection upwards sending*/
         if(received_msg.node_id < node_id-1){
           int wait_time = (node_id - received_msg.node_id);
-          printf("started counter with %ims\n",200*wait_time);
-          etimer_set(&lost_link_timer, (CLOCK_SECOND/5) * wait_time); //TODO test if sufficient time
+          printf("started counter with %ims\n",250*wait_time);
+          etimer_set(&lost_link_timer, (CLOCK_SECOND/4) * wait_time); //TODO test if sufficient time
           timer_was_set = 1;
         }
 
@@ -83,7 +85,7 @@ static void tcpip_handler(){
         PROCESS_WAIT_EVENT();
 
         if(ev == tcpip_event){
-          etimer_set(&emergency_timer,CLOCK_SECOND*20);
+          etimer_set(&emergency_timer,(CLOCK_SECOND)*last_node_id+1);
           etimer_stop(&lost_link_timer);
           timer_was_set = 0;
           tcpip_handler();

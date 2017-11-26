@@ -9,7 +9,7 @@ AUTOSTART_PROCESSES(&sink_process);
 /*---------------------------------------------------------------------------*/
 static uint8_t last_node_id;
 static struct etimer round_timer;
-static int number_of_rounds;
+static int number_of_rounds, current_round;
 static uint8_t rounds_failed;
 static uint8_t round_finished;
 /*---------------------------------------------------------------------------*/
@@ -27,7 +27,7 @@ static void tcpip_handler(){
 
       if(received_msg.node_id == last_node_id){
         rounds_failed = 0;
-        number_of_rounds--;
+        current_round++;
         round_finished = 1;
         prep_next_round();
       }
@@ -84,17 +84,13 @@ PROCESS_THREAD(sink_process, ev, data){
           case 3: message.link_param = atoi(str_ptr);
                   break;
           case 4: number_of_rounds = atoi(str_ptr);
+                  current_round = 0;
                   break;
           default: printf("ERROR while parsing input\n");
                   break;
         }
         comma_ptr++;
         str_ptr = comma_ptr;
-      }
-
-      /* first round to set nodes to right channel || txpower*/
-      if((next_channel != 0 && next_channel != 26) || (next_txpower != 0 && next_txpower != 31) ){
-        number_of_rounds = number_of_rounds +1;
       }
 
       message.last_node = last_node_id;
@@ -104,9 +100,9 @@ PROCESS_THREAD(sink_process, ev, data){
     }
 
     /* send rounds */
-    while(number_of_rounds){
+    while(current_round <= number_of_rounds){
       send();
-      etimer_set(&round_timer,CLOCK_SECOND*5);
+      etimer_set(&round_timer,(CLOCK_SECOND/4)*last_node_id+1);
       round_finished = 0;
 
       /* receive round */
@@ -115,13 +111,22 @@ PROCESS_THREAD(sink_process, ev, data){
         if(ev == tcpip_event){
           tcpip_handler();
           if(round_finished){
-            printf("round finished\n");
+            printf("NODE$round finished\n");
             break;  //number_of_rounds will have decremented
           }
         }else if(etimer_expired(&round_timer)){
-          printf("round failed\n");
+          printf("NODE$round failed\n");
           rounds_failed++;
           break; //number_of_rounds will not have decremented
+        }
+      }
+
+      /* wait for skript to check if all nodes answered in first round */
+      if(current_round == 1 && round_finished){
+        PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
+        char* str_ptr = (char*) data;
+        if(!strcmp(str_ptr,"resend")){
+          current_round--;
         }
       }
 
@@ -133,7 +138,7 @@ PROCESS_THREAD(sink_process, ev, data){
       }
 
     }//while num of rounds
-    printf("measurement finished\n");
+    printf("NODE$measurement finished\n");
     delete_link_data();
   } // while 1
 
