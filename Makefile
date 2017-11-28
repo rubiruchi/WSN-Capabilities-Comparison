@@ -12,6 +12,6 @@ PROJECT_SOURCEFILES += rimestats.c
 #MODULES += core/net/ipv6/multicast
 
 SMALL = 1
-CONTIKI_WITH_IPV6 = 1
+CONTIKI_WITH_RIME = 1
 
 include $(CONTIKI)/Makefile.include

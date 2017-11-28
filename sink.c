@@ -1,6 +1,12 @@
 #include "node.h"
 #include "dev/serial-line.h"
+
+#if TARGET==z1
+#include "dev/uart0.h"
+#else
 #include "dev/uart1.h"
+#endif
+
 #include <stdlib.h>
 
 /*---------------------------------------------------------------------------*/
@@ -13,9 +19,8 @@ static int number_of_rounds, current_round;
 static uint8_t rounds_failed;
 static uint8_t round_finished;
 /*---------------------------------------------------------------------------*/
-static void tcpip_handler(){
-  if(uip_newdata()){
-    msg_t received_msg = *(msg_t*) uip_appdata;
+static void abc_recv(){
+    msg_t received_msg = *(msg_t*) packetbuf_dataptr();
 
     fill_link_data(received_msg.node_id,
       received_msg.last_node,
@@ -31,28 +36,24 @@ static void tcpip_handler(){
         round_finished = 1;
         prep_next_round();
       }
-  }
+
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(sink_process, ev, data){
   PROCESS_BEGIN();
-  #if TARGET == z1
-  uart1_set_input(serial_line_input_byte);
+  PROCESS_EXITHANDLER(abc_close(&abc));
+
+  #if TARGET==z1
+  uart0_set_input(serial_line_input_byte);
   #else
   uart1_set_input(serial_line_input_byte);
   #endif
+
   serial_line_init();
 
-  set_ip_address();
   message.node_id = node_id;
 
-  if(!join_mcast_group()){
-    printf("couldn't join multicast group\n");
-    PROCESS_EXIT();
-  }
-
-  create_receive_conn();
-  create_broadcast_conn();
+  abc_open(&abc, 26, &abc_call);
 
   rounds_failed = 0;
 
@@ -108,16 +109,14 @@ PROCESS_THREAD(sink_process, ev, data){
       /* receive round */
       while(1){
         PROCESS_WAIT_EVENT();
-        if(ev == tcpip_event){
-          tcpip_handler();
           if(round_finished){
             printf("NODE$round finished\n");
-            break;  //number_of_rounds will have decremented
+            break;
           }
-        }else if(etimer_expired(&round_timer)){
+         if(etimer_expired(&round_timer)){
           printf("NODE$round failed\n");
           rounds_failed++;
-          break; //number_of_rounds will not have decremented
+          break;
         }
       }
 

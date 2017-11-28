@@ -8,16 +8,17 @@ static int last_node_id;
 PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
-static void tcpip_handler(){
-  if(uip_newdata()){
-    msg_t received_msg = *(msg_t*) uip_appdata;
+static void abc_recv(){
+    msg_t received_msg = *(msg_t*) packetbuf_dataptr();
 
     if(node_id > received_msg.last_node){
       return;
     }
 
-    /* indicates that a new round has started */
-    if(message.last_node    != received_msg.last_node    ||
+    etimer_set(&emergency_timer,(CLOCK_SECOND)*last_node_id+1);
+
+    /* indicates that a new measurement has started */
+    if(message.last_node   != received_msg.last_node    ||
       message.next_channel != received_msg.next_channel ||
       message.next_txpower != received_msg.next_txpower ||
       message.link_param   != received_msg.link_param){
@@ -41,6 +42,8 @@ static void tcpip_handler(){
 
       /* upwards sending*/
       if(received_msg.node_id == node_id -1){
+        etimer_stop(&lost_link_timer);
+        timer_was_set = 0;
         send();
         prep_next_round();
       }
@@ -53,12 +56,13 @@ static void tcpip_handler(){
           timer_was_set = 1;
         }
 
-      } //uip_newdata
     }
     /*---------------------------------------------------------------------------*/
 
     PROCESS_THREAD(node_process, ev, data){
       PROCESS_BEGIN();
+
+      PROCESS_EXITHANDLER(abc_close(&abc));
 
       timer_was_set = 0;
 
@@ -69,27 +73,12 @@ static void tcpip_handler(){
       message.link_param   = 0;
       delete_link_data();
 
-      set_ip_address();
-
-      if(!join_mcast_group()){
-        printf("couldn't join multicast group\n");
-        PROCESS_EXIT();
-      }
-
-      create_receive_conn();
-      create_broadcast_conn();
+      abc_open(&abc,26,&abc_call);
 
       leds_on(LEDS_GREEN);
 
       while(1){
         PROCESS_WAIT_EVENT();
-
-        if(ev == tcpip_event){
-          etimer_set(&emergency_timer,(CLOCK_SECOND)*last_node_id+1);
-          etimer_stop(&lost_link_timer);
-          timer_was_set = 0;
-          tcpip_handler();
-        }
 
         if(etimer_expired(&lost_link_timer) && timer_was_set){
           timer_was_set = 0;

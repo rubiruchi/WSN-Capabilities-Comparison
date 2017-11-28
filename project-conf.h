@@ -7,7 +7,7 @@
 
 #define DEFAULT_CHANNEL 26
 #define DEFAULT_TX_POWER 31
-#define MAX_NODES 10
+#define MAX_NODES 30
 
 
 #define RIMESTATS_CONF_ENABLED 1

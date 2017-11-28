@@ -33,10 +33,11 @@ process.stdin.write('make login\n')
 #loop through configs and start described experiments
 for config in configurations:
     sys.stdout.write("sending:"+config+"\n")
-    process.stdin.write(config+"\n") #send conf to sink
+    process.stdin.write(config+"\n")
     number_of_nodes = int(config[0])
     create_lists(node_measurements,number_of_nodes)
     first_round = True
+    round_failed = False
     checklist = range(1,number_of_nodes+1)
     line = get_untagged_input()
     while not line == 'measurement finished\n':
@@ -81,7 +82,7 @@ for config in configurations:
                 process.stdin.write('resend\n')
 
         if line == 'round failed\n':
-            first_round = True
+            round_failed = True
 
 
 if not os.path.exists(DIRECTORY_PATH):

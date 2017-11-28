@@ -1,25 +1,20 @@
 #ifndef NODE_HEADER
 #define NODE_HEADER
 #include "contiki.h"
-#include "contiki-lib.h"
-#include "contiki-net.h"
+// #include "contiki-lib.h"
+// #include "contiki-net.h"
 #include "sys/node-id.h"
 #include "dev/cc2420/cc2420.h"
 
 #include "net/packetbuf.h"
 
-#include "net/ipv6/multicast/uip-mcast6.h"
-#include "net/ipv6/multicast/uip-mcast6-engines.h"
-#include "net/ip/uip.h"
-#include "net/ipv6/uip-ds6.h"
-#include "net/ip/uip-udp-packet.h"
-#include "net/ip/uip-debug.h"
+#include "net/rime/rime.h"
+#include "net/rime/rimestats.h"
 
 #include <stdio.h>
 
 #include "dev/leds.h"
 
-#include "net/rime/rimestats.h"
 
 /*---------------------------------------------------------------------------*/
 #define UDP_BROADCAST_PORT 5678      // UDP port of broadcast connection
@@ -35,34 +30,11 @@ typedef struct msg{
 } msg_t;
 
 static msg_t message;
-static struct uip_udp_conn* broadcast_conn;
-static struct uip_udp_conn* receive_conn;
-static uip_ip6addr_t mcast_addr;
-static uip_ip6addr_t addr;
+static struct abc_conn abc;
 static int  next_channel, next_txpower;
 /*---------------------------------------------------------------------------*/
-static void tcpip_handler();
-
-static void create_broadcast_conn(){
-  broadcast_conn = udp_new(&mcast_addr,UIP_HTONS(UDP_BROADCAST_PORT),NULL);
-}
-
-static void create_receive_conn(){
-  receive_conn = udp_new(NULL, UIP_HTONS(0), 0);
-  udp_bind(receive_conn, UIP_HTONS(UDP_BROADCAST_PORT));
-}
-
-static void set_ip_address(){
-  /* set global ip adress */
-  uip_ip6addr(&addr, UIP_DS6_DEFAULT_PREFIX, 0, 0, 0, 0, 0, 0, 0);
-  uip_ds6_set_addr_iid(&addr, &uip_lladdr);
-  uip_ds6_addr_add(&addr, 0, ADDR_AUTOCONF);
-}
-
-static uip_ds6_maddr_t* join_mcast_group(void){
-  uip_ip6addr(&mcast_addr, 0xFF01,0,0,0,0,0,0x89,0xABCD);
-  return uip_ds6_maddr_add(&mcast_addr);
-}
+static void abc_recv();
+static const struct abc_callbacks abc_call = {abc_recv};
 
 /* delete old link data*/
 static void delete_link_data(){
@@ -93,18 +65,11 @@ static void print_link_data(msg_t* msg){
 
 /* print message, broadcast message, delete message*/
 static void send(){
-  // printf("sending: %i, lastnode: %i, nxtchan: %i, nxttx: %i, linkpar: %i\n",
-  // message.node_id,
-  // message.last_node,
-  // message.next_channel,
-  // message.next_txpower,
-  // message.link_param);
   leds_toggle(LEDS_RED);
   print_link_data(&message);
-  uip_udp_packet_send(broadcast_conn, &message, sizeof(message));
+  packetbuf_copyfrom(&message,sizeof(message));
+  abc_send(&abc);
   delete_link_data();
-  // printf("sendingdropI:%lu\n",RIMESTATS_GET(sendingdrop));
-  // printf("contentiondropI:%lu\n",RIMESTATS_GET(contentiondrop));
 }
 
 /* fill measured RSSI, LQI, or dropped counter into link data array*/
