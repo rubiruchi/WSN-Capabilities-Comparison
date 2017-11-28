@@ -1,7 +1,7 @@
 #include "node.h"
 #include "dev/serial-line.h"
 
-#if TARGET==z1
+#if UART == 0
 #include "dev/uart0.h"
 #else
 #include "dev/uart1.h"
@@ -43,7 +43,7 @@ PROCESS_THREAD(sink_process, ev, data){
   PROCESS_BEGIN();
   PROCESS_EXITHANDLER(abc_close(&abc));
 
-  #if TARGET==z1
+  #if UART == 0
   uart0_set_input(serial_line_input_byte);
   #else
   uart1_set_input(serial_line_input_byte);
