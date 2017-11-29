@@ -7,6 +7,12 @@ import os
 process = subprocess.Popen(['/bin/bash'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
 
 DIRECTORY_PATH = os.path.join(os.pardir,'Measurements')
+if not os.path.exists(DIRECTORY_PATH):
+    os.makedirs(DIRECTORY_PATH)
+
+platform = ""
+if len(sys.argv) > 1:
+    platform = sys.argv[1]
 
 # load config
 with open('config.json') as config_file:
@@ -14,17 +20,23 @@ with open('config.json') as config_file:
 
 #dict that maps nodeid to a list of measurements
 node_measurements = {}
-def create_lists(dictionary,number_of_nodes):
-    for i in range(1,number_of_nodes+1):
-        dictionary[str(i)] = []
 
+def load_measurements(number_of_nodes):
+    for i in range(1,number_of_nodes+1):
+        filename = platform+"_"+str(i)
+        try:
+            with open(os.path.join(DIRECTORY_PATH,filename),'r') as measurement_file:
+                node_measurements[str(i)] = json.load(measurement_file)
+        except IOError:
+            node_measurements[str(i)] = []
+
+#checks if the input is script relevant by splitting at '$' and returning the split part
 def get_untagged_input():
     line = process.stdout.readline()
     if '$' in line:
         sys.stdout.write(line.split('$')[1])
         return line.split('$')[1]
     else:
-        sys.stdout.write("rejected line: "+line)
         return ""
 
 sys.stdout.write("logging in\n")
@@ -35,16 +47,15 @@ for config in configurations:
     sys.stdout.write("sending:"+config+"\n")
     process.stdin.write(config+"\n")
     number_of_nodes = int(config[0])
-    create_lists(node_measurements,number_of_nodes)
     first_round = True
     round_failed = False
     checklist = range(1,number_of_nodes+1)
+    load_measurements(number_of_nodes)
+
     line = get_untagged_input()
     while not line == 'measurement finished\n':
-
         #who reports this link data set?
         if "," in line:
-            now = int(time.time())
             node_id = line.split(',')[0]
             channel = line.split(',')[1]
             txpower = line.split(',')[2]
@@ -55,6 +66,7 @@ for config in configurations:
 
         #bundle link data from this node
         while ":" in line:
+            now = time.time()
             measurement = {}
             measurement["from"]    = line.split(":")[0]
             measurement["param"]   = line.split(":")[1]
@@ -63,10 +75,12 @@ for config in configurations:
             measurement["channel"] = channel
             measurement["txpower"] = txpower
 
-            #only add if link data already available
-            #(in round 1 data from nodes higher up not yet available, so drop measurement)
-            if not first_round or not(node_id < measurement["from"]):
+            #only add if link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
+            if (not first_round and not round_failed) or not(node_id < measurement["from"]):
                 node_measurements[str(node_id)].append(measurement)
+                filename = platform+"_"+str(node_id)
+                with open(os.path.join(DIRECTORY_PATH,filename),'w') as f:
+                    json.dump(node_measurements[str(node_id)],f)
 
             line = get_untagged_input()
 
@@ -83,15 +97,5 @@ for config in configurations:
 
         if line == 'round failed\n':
             round_failed = True
-
-
-if not os.path.exists(DIRECTORY_PATH):
-    os.makedirs(DIRECTORY_PATH)
-
-for node in node_measurements:
-    platform = ""
-    if len(sys.argv) > 1:
-        platform = sys.argv[1]
-    filename = platform+"_"+str(node)
-    with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
-        json.dump(node_measurements[node],f)
+            
+sys.stdout.write(">Finished\n")

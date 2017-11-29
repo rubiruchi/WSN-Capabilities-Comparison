@@ -88,7 +88,7 @@ PROCESS_THREAD(sink_process, ev, data){
                   current_round = 0;
                   break;
           default: printf("ERROR while parsing input\n");
-                  break;
+                   break;
         }
         comma_ptr++;
         str_ptr = comma_ptr;
@@ -103,7 +103,7 @@ PROCESS_THREAD(sink_process, ev, data){
     /* send rounds */
     while(current_round <= number_of_rounds){
       send();
-      etimer_set(&round_timer,(CLOCK_SECOND/4)*last_node_id+1);
+      etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);
       round_finished = 0;
 
       /* receive round */

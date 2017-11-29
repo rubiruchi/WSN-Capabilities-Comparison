@@ -12,6 +12,7 @@
 #include "net/rime/rimestats.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "dev/leds.h"
 
@@ -45,7 +46,6 @@ static void delete_link_data(){
 static void print_link_data(msg_t* msg){
   int i;
   printf("NODE$%i,%i,%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
-
   for(i = 0; i < msg->last_node -1; i++){
     if(msg->node_id > i + 1){
       printf("NODE$%i:",i+1);

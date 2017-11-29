@@ -15,7 +15,7 @@ static void abc_recv(){
       return;
     }
 
-    etimer_set(&emergency_timer,(CLOCK_SECOND)*last_node_id+1);
+    etimer_set(&emergency_timer,(CLOCK_SECOND/10)*last_node_id*4);
 
     /* indicates that a new measurement has started */
     if(message.last_node   != received_msg.last_node    ||
@@ -51,8 +51,8 @@ static void abc_recv(){
         /* lost link detection upwards sending*/
         if(received_msg.node_id < node_id-1){
           int wait_time = (node_id - received_msg.node_id);
-          printf("started counter with %ims\n",250*wait_time);
-          etimer_set(&lost_link_timer, (CLOCK_SECOND/4) * wait_time); //TODO test if sufficient time
+          printf("started counter with %ims\n",100*wait_time);
+          etimer_set(&lost_link_timer, (CLOCK_SECOND/10) * wait_time); //TODO test if sufficient time
           timer_was_set = 1;
         }
 
