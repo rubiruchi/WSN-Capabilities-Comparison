@@ -103,22 +103,18 @@ PROCESS_THREAD(sink_process, ev, data){
     /* send rounds */
     while(current_round <= number_of_rounds){
       send();
-      etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);
       round_finished = 0;
+      etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);
 
       /* receive round */
-      while(1){
-        PROCESS_WAIT_EVENT();
-          if(round_finished){
-            printf("NODE$round finished\n");
-            break;
-          }
-         if(etimer_expired(&round_timer)){
-          printf("NODE$round failed\n");
-          rounds_failed++;
-          break;
-        }
+    PROCESS_WAIT_EVENT_UNTIL(round_finished == 1 || etimer_expired(&round_timer));
+    if(round_finished){
+        printf("NODE$round finished\n");
+      }else if(etimer_expired(&round_timer)){
+       printf("NODE$round failed\n");
+       rounds_failed++;
       }
+
 
       /* wait for skript to check if all nodes answered in first round */
       if(current_round == 1 && round_finished){

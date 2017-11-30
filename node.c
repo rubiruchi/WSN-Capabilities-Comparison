@@ -16,6 +16,7 @@ static void abc_recv(){
     }
 
     etimer_set(&emergency_timer,(CLOCK_SECOND/10)*last_node_id*4);
+    emergency_timer.p = &node_process;
 
     /* indicates that a new measurement has started */
     if(message.last_node   != received_msg.last_node    ||
@@ -51,8 +52,8 @@ static void abc_recv(){
         /* lost link detection upwards sending*/
         if(received_msg.node_id < node_id-1){
           int wait_time = (node_id - received_msg.node_id);
-          printf("started counter with %ims\n",100*wait_time);
           etimer_set(&lost_link_timer, (CLOCK_SECOND/10) * wait_time); //TODO test if sufficient time
+          lost_link_timer.p = &node_process;
           timer_was_set = 1;
         }
 
@@ -79,7 +80,6 @@ static void abc_recv(){
 
       while(1){
         PROCESS_WAIT_EVENT();
-
         if(etimer_expired(&lost_link_timer) && timer_was_set){
           timer_was_set = 0;
           printf("lost link detected. will continue sending\n");
@@ -88,9 +88,11 @@ static void abc_recv(){
         }
 
         if(etimer_expired(&emergency_timer)){
-          printf("emergency reset\n");
-          cc2420_set_channel(DEFAULT_CHANNEL);
-          cc2420_set_txpower(DEFAULT_TX_POWER);
+          if(cc2420_get_channel() != DEFAULT_CHANNEL || cc2420_get_txpower() != DEFAULT_TX_POWER){
+            printf("emergency reset\n");
+            cc2420_set_channel(DEFAULT_CHANNEL);
+            cc2420_set_txpower(DEFAULT_TX_POWER);
+          }
           etimer_reset(&emergency_timer);
         }
 
