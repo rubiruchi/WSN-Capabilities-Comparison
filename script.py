@@ -70,7 +70,7 @@ for config in configurations:
             measurement = {}
             measurement["from"]    = line.split(":")[0]
             measurement["param"]   = line.split(":")[1]
-            measurement["value"]   = line.split(":")[2]
+            measurement["value"]   = line.split(":")[2].rstrip()
             measurement["time"]    = now
             measurement["channel"] = channel
             measurement["txpower"] = txpower
@@ -97,5 +97,5 @@ for config in configurations:
 
         if line == 'round failed\n':
             round_failed = True
-            
+
 sys.stdout.write(">Finished\n")

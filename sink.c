@@ -122,6 +122,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
       /* wait for skript to check if all nodes answered in first round */
       if(current_round == 1 && round_finished){
+        printf("continue or resend ?\n");
         PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
         char* str_ptr = (char*) data;
         if(!strcmp(str_ptr,"resend")){
