@@ -3,7 +3,8 @@
 
 #if UART == 0
 #include "dev/uart0.h"
-#else
+#endif
+#if UART == 1
 #include "dev/uart1.h"
 #endif
 
@@ -102,7 +103,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
     /* send rounds */
     while(current_round <= number_of_rounds){
-      send();
+      sendmsg();
       round_finished = 0;
       etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);
 
@@ -128,8 +129,14 @@ PROCESS_THREAD(sink_process, ev, data){
 
       if(rounds_failed == 4){
         printf("emergency channel&txpower reset\n");
+        #ifdef CC2420
         cc2420_set_channel(DEFAULT_CHANNEL);
         cc2420_set_txpower(DEFAULT_TX_POWER);
+        #endif
+        #ifdef OPENMOTE
+        NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, DEFAULT_CHANNEL);
+        NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, DEFAULT_TX_POWER);
+        #endif
         rounds_failed = 0;
       }
 

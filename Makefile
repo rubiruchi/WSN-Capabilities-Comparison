@@ -7,10 +7,17 @@ CONTIKI = /home/${USER}/contiki
 CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 #CFLAGS += -DUIP_CONF_ND6_SEND_NS=1
 
-ifeq ($(TARGET),z1)
-        CFLAGS += -D UART=0
+ifeq ($(TARGET),openmote-cc2538)
+CFLAGS += -DOPENMOTE=1
+PROJECT_SOURCEFILES += cc2538-rf.c
 else
-        CFLAGS += -D UART=1
+CFLAGS += -DCC2420=1
+endif
+
+ifeq ($(TARGET),z1)
+CFLAGS += -DUART=0
+else
+CFLAGS += -DUART=1
 endif
 
 #CONTIKI_SOURCEFILES +=

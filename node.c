@@ -45,7 +45,7 @@ static void abc_recv(){
       if(received_msg.node_id == node_id -1){
         etimer_stop(&lost_link_timer);
         timer_was_set = 0;
-        send();
+        sendmsg();
         prep_next_round();
       }
 
@@ -83,16 +83,28 @@ static void abc_recv(){
         if(etimer_expired(&lost_link_timer) && timer_was_set){
           timer_was_set = 0;
           printf("lost link detected. will continue sending\n");
-          send();
+          sendmsg();
           prep_next_round();
         }
 
         if(etimer_expired(&emergency_timer)){
+          printf("emergency reset\n");
+
+          #ifdef CC2420
           if(cc2420_get_channel() != DEFAULT_CHANNEL || cc2420_get_txpower() != DEFAULT_TX_POWER){
-            printf("emergency reset\n");
             cc2420_set_channel(DEFAULT_CHANNEL);
             cc2420_set_txpower(DEFAULT_TX_POWER);
           }
+          #endif
+          #ifdef OPENMOTE
+          NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL,&current_channel);
+          NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER,&current_txpower);
+          if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
+            NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, DEFAULT_CHANNEL);
+            NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, DEFAULT_TX_POWER);
+          }
+          #endif
+
           etimer_reset(&emergency_timer);
         }
 

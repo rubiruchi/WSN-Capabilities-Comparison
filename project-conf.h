@@ -43,7 +43,16 @@
 #define NETSTACK_RDC_CHANNEL_CHECKRATE      32
 #undef RF_CHANNEL
 #define RF_CHANNEL                          DEFAULT_CHANNEL
-#undef CC2420_CONF_CHANNEL
-#define CC2420_CONF_CHANNEL                 DEFAULT_CHANNEL
+
+// #if RADIO==cc2420
+// #undef CC2420_CONF_CHANNEL
+// #define CC2420_CONF_CHANNEL                 DEFAULT_CHANNEL
+// #endif
+//
+// #if RADIO==openmote
+// #undef CC2538_RF_CONF_CHANNEL
+// #define CC2538_RF_CONF_CHANNEL                 DEFAULT_CHANNEL
+// #endif
+
 
 #endif /* PROJECT_CONF_H_ */
