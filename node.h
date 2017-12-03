@@ -3,17 +3,25 @@
 
 #include "contiki.h"
 
-#ifdef OPENMOTE
-#include "dev/cc2538-rf.h"
 #include "net/netstack.h"
-static short node_id = IEEE_ADDR_NODE_ID;
-#endif
-#ifdef CC2420
-#include "dev/cc2420/cc2420.h"
+
+#include "net/packetbuf.h"
+
+#if defined(sky) || defined(z1) || defined(sensortag)
 #include "sys/node-id.h"
 #endif
 
-#include "net/packetbuf.h"
+#if defined(sky) || defined(z1)
+#include "dev/cc2420/cc2420.h"
+#endif
+
+#ifdef openmote
+  #ifdef IEEE_ADDR_NODE_ID
+    static unsigned short node_id = IEEE_ADDR_NODE_ID;
+  #else
+    static unsigned short node_id = 0;
+  #endif
+#endif
 
 #include "net/rime/rime.h"
 #include "net/rime/rimestats.h"
@@ -39,7 +47,7 @@ typedef struct msg{
 
 static msg_t message;
 static struct abc_conn abc;
-static int  next_channel, next_txpower, current_channel, current_txpower;
+static radio_value_t  next_channel, next_txpower, current_channel, current_txpower;
 /*---------------------------------------------------------------------------*/
 static void abc_recv();
 static const struct abc_callbacks abc_call = {abc_recv};
@@ -49,25 +57,44 @@ static void delete_link_data(){
   memset(message.link_data, 0, MAX_NODES-1);
 }
 
+static int get_channel(){
+  NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL,&current_channel);
+  return current_channel;
+}
+
+static void set_channel(int channel){
+  NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
+}
+
+static int get_txpower(){
+  /* get/set txpower somehow not working for cc2420 without directly using radio driver */
+  #if defined(sky) || defined(z1)
+  return cc2420_get_txpower();
+  #endif
+
+  NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER,&current_txpower);
+  return current_txpower;
+}
+
+static void set_txpower(int power){
+  /* get/set txpower somehow not working for cc2420 without directly using radio driver */
+  #if defined(sky) || defined(z1)
+  current_txpower = power;
+  cc2420_set_txpower(power);
+  #endif
+
+  NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, power);
+}
+
 /* print link data of a message */
 static void print_link_data(msg_t* msg){
   int i;
-  #ifdef CC2420
-  printf("NODE$%i,%i,%i\n",msg->node_id,cc2420_get_channel(), cc2420_get_txpower());
-  #endif
-  #ifdef OPENMOTE
-  NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL,&current_channel);
-  NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER,&current_txpower);
-  printf("NODE$%i,%i,%i\n",msg->node_id,current_channel, current_txpower);
-  #endif
-
-
-
   for(i = 0; i < msg->last_node -1; i++){
+    printf("NODE$%i:%i:%i:",msg->node_id,get_channel(), get_txpower());
     if(msg->node_id > i + 1){
-      printf("NODE$%i:",i+1);
+      printf("%i:",i+1);
     }else{
-      printf("NODE$%i:",i+2);
+      printf("%i:",i+2);
     }
 
     if(msg->link_param == 0){
@@ -124,29 +151,14 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
 
 /*change channel and/or txpower for next round if necessary */
 static void prep_next_round(){
-  #ifdef CC2420
-
-  if(next_channel != 0 && (cc2420_get_channel() != next_channel)){
-    cc2420_set_channel(next_channel);
-  }
-
-  if(next_txpower != 0 && (cc2420_get_txpower() != next_channel)){
-    cc2420_set_txpower(next_txpower);
-  }
-
-#endif
-#ifdef OPENMOTE
-
-NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL,&current_channel);
-NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER,&current_txpower);
-if(next_channel != 0 && (current_channel != next_channel)){
-  NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, next_channel);
+if(next_channel != 0 && (get_channel() != next_channel)){
+  set_channel(next_channel);
 }
 
-if(next_txpower != 0 && (current_txpower != next_channel)){
-  NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, next_txpower);
+if(next_txpower != 0 && (get_txpower() != next_txpower)){
+  set_txpower(next_txpower);
 }
-#endif
+
 
 }
 

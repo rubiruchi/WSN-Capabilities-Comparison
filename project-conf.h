@@ -9,6 +9,9 @@
 #define DEFAULT_TX_POWER 31
 #define MAX_NODES 30
 
+#ifdef sensortag
+#define ROM_BOOTLOADER_ENABLE                 1
+#endif
 
 #define RIMESTATS_CONF_ENABLED 1
 #define UART1_CONF_TX_WITH_INTERRUPT 1
@@ -40,15 +43,13 @@
 #define NETSTACK_CONF_MAC                   nullmac_driver
 
 #undef NETSTACK_RDC_CHANNEL_CHECKRATE
-#define NETSTACK_RDC_CHANNEL_CHECKRATE      32
+#define NETSTACK_RDC_CHANNEL_CHECKRATE      64
 #undef RF_CHANNEL
 #define RF_CHANNEL                          DEFAULT_CHANNEL
 
-// #if RADIO==cc2420
 // #undef CC2420_CONF_CHANNEL
 // #define CC2420_CONF_CHANNEL                 DEFAULT_CHANNEL
-// #endif
-//
+
 // #if RADIO==openmote
 // #undef CC2538_RF_CONF_CHANNEL
 // #define CC2538_RF_CONF_CHANNEL                 DEFAULT_CHANNEL

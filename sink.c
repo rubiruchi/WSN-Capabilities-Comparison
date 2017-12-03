@@ -1,10 +1,9 @@
 #include "node.h"
 #include "dev/serial-line.h"
 
-#if UART == 0
+#ifdef z1
 #include "dev/uart0.h"
-#endif
-#if UART == 1
+#else
 #include "dev/uart1.h"
 #endif
 
@@ -19,6 +18,7 @@ static struct etimer round_timer;
 static int number_of_rounds, current_round;
 static uint8_t rounds_failed;
 static uint8_t round_finished;
+static uint8_t recently_reset;
 /*---------------------------------------------------------------------------*/
 static void abc_recv(){
     msg_t received_msg = *(msg_t*) packetbuf_dataptr();
@@ -33,8 +33,11 @@ static void abc_recv(){
 
       if(received_msg.node_id == last_node_id){
         rounds_failed = 0;
-        current_round++;
+        if(!recently_reset){
+          current_round++;
+        }
         round_finished = 1;
+        recently_reset = 0;
         prep_next_round();
       }
 
@@ -44,7 +47,7 @@ PROCESS_THREAD(sink_process, ev, data){
   PROCESS_BEGIN();
   PROCESS_EXITHANDLER(abc_close(&abc));
 
-  #if UART == 0
+  #ifdef z1
   uart0_set_input(serial_line_input_byte);
   #else
   uart1_set_input(serial_line_input_byte);
@@ -57,6 +60,7 @@ PROCESS_THREAD(sink_process, ev, data){
   abc_open(&abc, 26, &abc_call);
 
   rounds_failed = 0;
+  recently_reset = 0;
 
   leds_on(LEDS_GREEN);
   leds_on(LEDS_BLUE);
@@ -69,6 +73,8 @@ PROCESS_THREAD(sink_process, ev, data){
       char* str_ptr = (char*) data;
       char* comma_ptr = &(*str_ptr);
 
+
+      //go to next ',' and replace it with '\0'. read resulting string. set pointer to char after repeat until end of string
       int i;
       for(i = 0; i < 5; i++){
         while(*comma_ptr != ',' && *comma_ptr != '\0'){
@@ -117,7 +123,7 @@ PROCESS_THREAD(sink_process, ev, data){
       }
 
 
-      /* wait for skript to check if all nodes answered in first round */
+      /* wait for script to check if all nodes answered in first round */
       if(current_round == 1 && round_finished){
         printf("continue or resend ?\n");
         PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
@@ -128,16 +134,11 @@ PROCESS_THREAD(sink_process, ev, data){
       }
 
       if(rounds_failed == 4){
-        printf("emergency channel&txpower reset\n");
-        #ifdef CC2420
-        cc2420_set_channel(DEFAULT_CHANNEL);
-        cc2420_set_txpower(DEFAULT_TX_POWER);
-        #endif
-        #ifdef OPENMOTE
-        NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, DEFAULT_CHANNEL);
-        NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, DEFAULT_TX_POWER);
-        #endif
+        printf("NODE$reset\n");
+        set_channel(DEFAULT_CHANNEL);
+        set_txpower(DEFAULT_TX_POWER);
         rounds_failed = 0;
+        recently_reset = 1;
       }
 
     }//while num of rounds

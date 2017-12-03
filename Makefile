@@ -8,16 +8,19 @@ CFLAGS += -DPROJECT_CONF_H=\"project-conf.h\"
 #CFLAGS += -DUIP_CONF_ND6_SEND_NS=1
 
 ifeq ($(TARGET),openmote-cc2538)
-CFLAGS += -DOPENMOTE=1
-PROJECT_SOURCEFILES += cc2538-rf.c
-else
-CFLAGS += -DCC2420=1
+CFLAGS += -D openmote=1
+endif
+
+ifeq ($(TARGET),srf06-cc26xx)
+CFLAGS += -D sensortag=1
+endif
+
+ifeq ($(TARGET),sky)
+CFLAGS += -D $(TARGET)=1
 endif
 
 ifeq ($(TARGET),z1)
-CFLAGS += -DUART=0
-else
-CFLAGS += -DUART=1
+CFLAGS += -D $(TARGET)=1
 endif
 
 #CONTIKI_SOURCEFILES +=

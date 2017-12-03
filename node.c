@@ -89,21 +89,10 @@ static void abc_recv(){
 
         if(etimer_expired(&emergency_timer)){
           printf("emergency reset\n");
-
-          #ifdef CC2420
-          if(cc2420_get_channel() != DEFAULT_CHANNEL || cc2420_get_txpower() != DEFAULT_TX_POWER){
-            cc2420_set_channel(DEFAULT_CHANNEL);
-            cc2420_set_txpower(DEFAULT_TX_POWER);
-          }
-          #endif
-          #ifdef OPENMOTE
-          NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL,&current_channel);
-          NETSTACK_RADIO.get_value(RADIO_PARAM_TXPOWER,&current_txpower);
           if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
-            NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, DEFAULT_CHANNEL);
-            NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, DEFAULT_TX_POWER);
+            set_channel(DEFAULT_CHANNEL);
+            set_txpower(DEFAULT_TX_POWER);
           }
-          #endif
 
           etimer_reset(&emergency_timer);
         }
