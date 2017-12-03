@@ -23,7 +23,9 @@ For Cooja Simulation:
 <linkparameter>:    the parameter you want to measure (0 for RSSI, 1 for LQI, 2 for number of dropped packets)
 <number of rounds>: the number of measurement rounds
 
+_________________________________________________________________________
 For Script:
+
 - Start with: python script <platform>
 - Will scan through /dev/ and try to log into every device starting with ttyUSB
 - The measurements are stored in a list individually for each node
