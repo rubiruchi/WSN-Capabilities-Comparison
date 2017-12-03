@@ -1,7 +1,7 @@
 obj_sky/
 symbols.c
 symbols.h
-firstsim.csc
+basim.csc
 sink.sky
 node.sky
 contiki-sky.a
@@ -9,3 +9,14 @@ contiki-sky.map
 basim.csc
 notes
 program_script.py
+node.elf
+node.hex
+node.openmote-cc2538
+obj_srf06-cc26xx/
+sink.elf
+obj_openmote-cc2538/
+testscript.py
+node.srf06-cc26xx
+sink.hex
+sink.openmote-cc2538
+sink.srf06-cc26xx
