@@ -61,6 +61,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
   rounds_failed = 0;
   recently_reset = 0;
+  number_of_rounds = -1;
 
   leds_on(LEDS_GREEN);
   leds_on(LEDS_BLUE);
@@ -75,40 +76,43 @@ PROCESS_THREAD(sink_process, ev, data){
 
 
       //go to next ',' and replace it with '\0'. read resulting string. set pointer to char after repeat until end of string
-      int i;
-      for(i = 0; i < 5; i++){
-        while(*comma_ptr != ',' && *comma_ptr != '\0'){
+      if(strlen(str_ptr) >= 9){
+        int i;
+        for(i = 0; i < 5; i++){
+          while(*comma_ptr != ',' && *comma_ptr != '\0'){
+            comma_ptr++;
+          }
+          *comma_ptr = '\0';
+
+          switch(i){
+            case 0: last_node_id = atoi(str_ptr);
+                    break;
+            case 1: next_channel = atoi(str_ptr);
+                    break;
+            case 2: next_txpower = atoi(str_ptr);
+                    break;
+            case 3: message.link_param = atoi(str_ptr);
+                    break;
+            case 4: number_of_rounds = atoi(str_ptr);
+                    current_round = 0;
+                    break;
+            default: printf("ERROR while parsing input\n");
+                     break;
+          }
           comma_ptr++;
+          str_ptr = comma_ptr;
         }
-        *comma_ptr = '\0';
 
-        switch(i){
-          case 0: last_node_id = atoi(str_ptr);
-                  break;
-          case 1: next_channel = atoi(str_ptr);
-                  break;
-          case 2: next_txpower = atoi(str_ptr);
-                  break;
-          case 3: message.link_param = atoi(str_ptr);
-                  break;
-          case 4: number_of_rounds = atoi(str_ptr);
-                  current_round = 0;
-                  break;
-          default: printf("ERROR while parsing input\n");
-                   break;
-        }
-        comma_ptr++;
-        str_ptr = comma_ptr;
+        message.last_node = last_node_id;
+        message.next_channel = next_channel;
+        message.next_txpower = next_txpower;
       }
-
-      message.last_node = last_node_id;
-      message.next_channel = next_channel;
-      message.next_txpower = next_txpower;
 
     }
 
     /* send rounds */
     while(current_round <= number_of_rounds){
+      printf("number_of_rounds %i\n",number_of_rounds);
       sendmsg();
       round_finished = 0;
       etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);
