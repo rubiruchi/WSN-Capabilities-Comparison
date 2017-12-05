@@ -7,8 +7,8 @@ Node IDs:
 -NORMAL NODES should always have unique NODE IDs in ASCENDING order.
 
 Node placement:
--The assumption is that the is at least one connection between nodes in the order of their node ids (1-2, 2-3, ...)
--Each node sends a broadcast message once it has received a message from the node before it.
+- The assumption is that the is at least one connection between nodes in the order of their node ids (1-2, 2-3, ...)
+- Each node sends a broadcast message once it has received a message from the node before it.
 - The last node in the network should have a connection to the sink node
 
 _________________________________________________________________________
@@ -22,3 +22,11 @@ For Cooja Simulation:
 <txpower>:          the transmisson power you want to send with (1-31)
 <linkparameter>:    the parameter you want to measure (0 for RSSI, 1 for LQI, 2 for number of dropped packets)
 <number of rounds>: the number of measurement rounds
+
+_________________________________________________________________________
+For Script:
+
+- Start with: python script <platform>
+- Will scan through /dev/ and try to log into every device starting with ttyUSB
+- The measurements are stored in a list individually for each node
+- The resulting .json files can be found in the "Measurements" folder created in the parent directory
