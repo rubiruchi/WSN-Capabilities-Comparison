@@ -23,9 +23,9 @@ ifeq ($(TARGET),z1)
 CFLAGS += -D $(TARGET)=1
 endif
 
-# ifdef NODEID
-# CFLAGS += -D NID=$(NODEID)
-# endif
+ifdef NODEID
+CFLAGS += -D NID=$(NODEID)
+endif
 
 #CONTIKI_SOURCEFILES +=
 PROJECT_SOURCEFILES += rimestats.c

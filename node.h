@@ -11,10 +11,10 @@
 #include "sys/node-id.h"
 #endif
 
-// #if defined(sensortag) && defined(NID)
-// #undef IEEE_ADDR_CONF_ADDRESS
-// #define IEEE_ADDR_CONF_ADDRESS                {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, NID}
-// #endif
+#if defined(sensortag) && defined(NID)
+#undef IEEE_ADDR_CONF_ADDRESS
+#define IEEE_ADDR_CONF_ADDRESS                {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, NID}
+#endif
 
 #if defined(sky) || defined(z1)
 #include "dev/cc2420/cc2420.h"
@@ -47,7 +47,7 @@ typedef struct msg{
   uint8_t next_channel:5;
   uint8_t next_txpower:5;
   uint8_t link_param:2;                 // 0 for rssi, 1 for lqi, 2 for dropped
-  char link_data[MAX_NODES-1];
+  signed char link_data[MAX_NODES-1];
 } msg_t;
 
 static msg_t message;
