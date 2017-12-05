@@ -23,6 +23,10 @@ ifeq ($(TARGET),z1)
 CFLAGS += -D $(TARGET)=1
 endif
 
+# ifdef NODEID
+# CFLAGS += -D NID=$(NODEID)
+# endif
+
 #CONTIKI_SOURCEFILES +=
 PROJECT_SOURCEFILES += rimestats.c
 #MODULES += core/net/ipv6/multicast

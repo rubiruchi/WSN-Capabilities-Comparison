@@ -11,6 +11,9 @@
 
 #ifdef sensortag
 #define ROM_BOOTLOADER_ENABLE                 1
+#define BOARD_CONF_DEBUGGER_DEVPACK           1
+#define IEEE_ADDR_CONF_HARDCODED              1
+#define IEEE_ADDR_CONF_ADDRESS                {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 2}
 #endif
 
 #define RIMESTATS_CONF_ENABLED 1

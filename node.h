@@ -11,6 +11,11 @@
 #include "sys/node-id.h"
 #endif
 
+// #if defined(sensortag) && defined(NID)
+// #undef IEEE_ADDR_CONF_ADDRESS
+// #define IEEE_ADDR_CONF_ADDRESS                {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, NID}
+// #endif
+
 #if defined(sky) || defined(z1)
 #include "dev/cc2420/cc2420.h"
 #endif

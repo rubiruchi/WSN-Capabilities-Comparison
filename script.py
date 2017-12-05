@@ -67,7 +67,7 @@ def handle_line(line):
     global checklist
     global round_failed
     global node_measurements
-    
+
     #bundle link data from a node
     if ":" in line:
         if len(line.split(':')) is 6:
@@ -115,11 +115,15 @@ def handle_line(line):
         checklist = range(1,number_of_nodes+1)
 
 
-devices = filter(lambda x: x.startswith('ttyUSB'), os.listdir('/dev'))
+devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
 for device in devices:
     process = subprocess.Popen(['/bin/bash'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-    sys.stdout.write('>make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
-    process.stdin.write('make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
+    if device.startswith('ttyUSB'):
+        sys.stdout.write('>make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
+        process.stdin.write('make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
+    elif device.startswith('ttyACM'):
+        sys.stdout.write('>make login TARGET={} PORT=/dev/{}\n'.format(platform, device))
+        process.stdin.write('make login TARGET={} PORT=/dev/{}\n'.format(platform, device))
     subprocesses.append(process)
 
 #loop through configs and start described experiments
@@ -131,8 +135,7 @@ for config in configurations:
     load_node_measurements()
 
     sys.stdout.write(">sending:"+config+"\n")
-    for process in subprocesses:
-        process.stdin.write(config+"\n")
+    write_to_subprocesses(config+"\n")
 
     line = get_untagged_input()
     while line != 'measurement finished\n':

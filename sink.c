@@ -63,9 +63,8 @@ PROCESS_THREAD(sink_process, ev, data){
   recently_reset = 0;
   number_of_rounds = -1;
 
-  leds_on(LEDS_GREEN);
-  leds_on(LEDS_BLUE);
-
+  leds_on(LEDS_ALL);
+  printf("nodeid %i\n",node_id);
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
   while(1){
     PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
@@ -112,7 +111,6 @@ PROCESS_THREAD(sink_process, ev, data){
 
     /* send rounds */
     while(current_round <= number_of_rounds){
-      printf("number_of_rounds %i\n",number_of_rounds);
       sendmsg();
       round_finished = 0;
       etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);

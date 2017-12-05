@@ -9,6 +9,7 @@ PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
 static void abc_recv(){
+    leds_toggle(LEDS_GREEN);
     msg_t received_msg = *(msg_t*) packetbuf_dataptr();
 
     if(node_id > received_msg.last_node){
