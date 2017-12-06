@@ -3,6 +3,7 @@ import json
 import sys
 import subprocess
 import os
+import signal
 
 DIRECTORY_PATH = os.path.join(os.pardir,'Measurements')
 if not os.path.exists(DIRECTORY_PATH):
@@ -26,16 +27,9 @@ first_round = True
 round_failed = False
 checklist = range(1,number_of_nodes+1)
 
-for i in range(1,number_of_nodes+1):
-    load_node_measurement(i)
-
 # handles Ctrl+C termination
 def signal_handler(signum,frame):
     print("exiting process")
-    log.write(strftime("%Y-%m-%d %H:%M:%S", gmtime()) + ": " +
-    "System Stopped\n\n")
-    log.close()
-    copy_to_permalog()
     sys.exit(0)
 
 def load_node_measurements():
@@ -88,7 +82,7 @@ def handle_line(line):
             measurement["txpower"] = txpower
 
             #only add if link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
-            if (not first_round and not round_failed) or not(node_id < measurement["from"]):
+            if (not first_round and not round_failed) or not(int(node_id) < int(measurement["from"])):
                 node_measurements[str(node_id)].append(measurement)
                 filename = platform+"_"+str(node_id)
                 with open(os.path.join(DIRECTORY_PATH,filename),'w') as f:
@@ -111,29 +105,42 @@ def handle_line(line):
         round_failed = True
 
     if line == 'reset\n':
+        sys.stdout.write(">New first round\n")
         first_round = True
         checklist = range(1,number_of_nodes+1)
 
+def throw_out_debugger():
+    highest = 0
+    for device in devices:
+        if device.startswith('ttyACM') and int(device[-1:]) > highest:
+            highest = int(device[-1:])
+    if highest != 0:
+        devices.remove('ttyACM'+str(highest))
+
+def subprocess_init():
+    for device in devices:
+        process = subprocess.Popen(['/bin/bash'], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        if device.startswith('ttyUSB'):
+            sys.stdout.write('>make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
+            process.stdin.write('make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
+        elif device.startswith('ttyACM'):
+            sys.stdout.write('>make login TARGET={} BOARD=sensortag/cc2650 PORT=/dev/{}\n'.format(platform, device))
+            process.stdin.write('make login TARGET={} BOARD=sensortag/cc2650 PORT=/dev/{}\n'.format(platform, device))
+        subprocesses.append(process)
 
 devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
-for device in devices:
-    process = subprocess.Popen(['/bin/bash'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
-    if device.startswith('ttyUSB'):
-        sys.stdout.write('>make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
-        process.stdin.write('make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
-    elif device.startswith('ttyACM'):
-        sys.stdout.write('>make login TARGET={} PORT=/dev/{}\n'.format(platform, device))
-        process.stdin.write('make login TARGET={} PORT=/dev/{}\n'.format(platform, device))
-    subprocesses.append(process)
-
+throw_out_debugger()
+subprocess_init()
 #loop through configs and start described experiments
 for config in configurations:
+    signal.signal(signal.SIGINT, signal_handler)
     number_of_nodes = int(config[0])
     first_round = True
     round_failed = False
     checklist = range(1,number_of_nodes+1)
     load_node_measurements()
 
+    sys.stdout.write(">subprocesses:"+str(len(subprocesses)))
     sys.stdout.write(">sending:"+config+"\n")
     write_to_subprocesses(config+"\n")
 

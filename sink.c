@@ -64,7 +64,6 @@ PROCESS_THREAD(sink_process, ev, data){
   number_of_rounds = -1;
 
   leds_on(LEDS_ALL);
-  printf("nodeid %i\n",node_id);
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
   while(1){
     PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
@@ -127,6 +126,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
       /* wait for script to check if all nodes answered in first round */
       if(current_round == 1 && round_finished){
+        delete_link_data();
         printf("continue or resend ?\n");
         PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
         char* str_ptr = (char*) data;

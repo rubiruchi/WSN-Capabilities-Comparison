@@ -14,6 +14,8 @@
 #define BOARD_CONF_DEBUGGER_DEVPACK           1
 #define IEEE_ADDR_CONF_HARDCODED              1
 //#define IEEE_ADDR_CONF_ADDRESS                {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 2}
+#define RF_BLE_CONF_ENABLED                   0
+#define NETSTACK_CONF_RADIO        ieee_mode_driver
 #endif
 
 #define RIMESTATS_CONF_ENABLED 1
@@ -46,7 +48,7 @@
 #define NETSTACK_CONF_MAC                   nullmac_driver
 
 #undef NETSTACK_RDC_CHANNEL_CHECKRATE
-#define NETSTACK_RDC_CHANNEL_CHECKRATE      64
+#define NETSTACK_RDC_CHANNEL_CHECKRATE      32
 #undef RF_CHANNEL
 #define RF_CHANNEL                          DEFAULT_CHANNEL
 
