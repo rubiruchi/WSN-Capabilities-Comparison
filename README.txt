@@ -12,6 +12,10 @@ Node placement:
 - The last node in the network should have a connection to the sink node
 
 _________________________________________________________________________
+For compilation:
+- alway specify TARGET
+- TI Sensortag cc2650: compile with NODEID=<id> to set nodeid directly
+
 For Cooja Simulation:
 
 - open serial line input window of the sink node
@@ -24,7 +28,7 @@ For Cooja Simulation:
 <number of rounds>: the number of measurement rounds
 
 _________________________________________________________________________
-For Script:
+For script:
 
 - Start with: python script <platform>
 - Will scan through /dev/ and try to log into every device starting with ttyUSB
