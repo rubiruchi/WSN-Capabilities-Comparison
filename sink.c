@@ -1,6 +1,6 @@
 #include "node.h"
 #include "dev/serial-line.h"
-
+#include "rf-core/rf-ble.h"
 #ifdef z1
 #include "dev/uart0.h"
 #else
@@ -67,6 +67,8 @@ PROCESS_THREAD(sink_process, ev, data){
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
   while(1){
     PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
+
+    printf("ble is active: %i\n",rf_ble_is_active());
 
     if(ev == serial_line_event_message){
       char* str_ptr = (char*) data;

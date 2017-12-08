@@ -70,7 +70,10 @@ static int get_channel(){
 }
 
 static void set_channel(int channel){
-  NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
+  abc_close(&abc);
+  abc_open(&abc,channel,&abc_call);
+  printf("channel set: %i\n",NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel));
+  printf("channel now: %i\n",get_channel());
 }
 
 static int get_txpower(){
