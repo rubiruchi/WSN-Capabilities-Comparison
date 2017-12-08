@@ -5,7 +5,7 @@
 /* Change this to switch engines. Engine codes in uip-mcast6-engines.h */
 //#define UIP_MCAST6_CONF_ENGINE UIP_MCAST6_ENGINE_ROLL_TM
 
-#define DEFAULT_CHANNEL 25
+#define DEFAULT_CHANNEL 26
 #define DEFAULT_TX_POWER 31
 #define MAX_NODES 30
 
@@ -13,7 +13,6 @@
 #define ROM_BOOTLOADER_ENABLE                 1
 #define BOARD_CONF_DEBUGGER_DEVPACK           1
 #define IEEE_ADDR_CONF_HARDCODED              1
-//#define IEEE_ADDR_CONF_ADDRESS                {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 2}
 #define RF_BLE_CONF_ENABLED                   0
 #define CC26XX_RF_CONF_BLE_SUPPORT            0
 #define NETSTACK_CONF_RADIO        ieee_mode_driver

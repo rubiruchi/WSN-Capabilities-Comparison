@@ -57,7 +57,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
   message.node_id = node_id;
 
-  abc_open(&abc, 26, &abc_call);
+  abc_open(&abc, DEFAULT_CHANNEL, &abc_call);
 
   rounds_failed = 0;
   recently_reset = 0;
@@ -65,11 +65,12 @@ PROCESS_THREAD(sink_process, ev, data){
 
   leds_on(LEDS_ALL);
   printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
+
+/* main loop */
   while(1){
+
+    /* handle serial line input */
     PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
-
-    printf("ble is active: %i\n",rf_ble_is_active());
-
     if(ev == serial_line_event_message){
       char* str_ptr = (char*) data;
       char* comma_ptr = &(*str_ptr);
@@ -148,7 +149,7 @@ PROCESS_THREAD(sink_process, ev, data){
     }//while num of rounds
     printf("NODE$measurement finished\n");
     delete_link_data();
-  } // while 1
+  } // while 1 main loop
 
   PROCESS_END();
 }

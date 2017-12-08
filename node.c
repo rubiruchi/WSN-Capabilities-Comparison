@@ -9,12 +9,14 @@ PROCESS(node_process, "node process");
 AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
 static void abc_recv(){
-    leds_toggle(LEDS_GREEN);
     msg_t received_msg = *(msg_t*) packetbuf_dataptr();
 
+    /* don't handle message if node isn't needed for measuerement */
     if(node_id > received_msg.last_node){
       return;
     }
+
+    leds_toggle(LEDS_GREEN);
 
     etimer_set(&emergency_timer,(CLOCK_SECOND/10)*last_node_id*4);
     emergency_timer.p = &node_process;
@@ -40,6 +42,7 @@ static void abc_recv(){
       packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
       received_msg.link_param);
 
+      /* in case node works as additional sink */
       print_link_data(&received_msg);
 
       /* upwards sending*/
@@ -75,12 +78,13 @@ static void abc_recv(){
       message.link_param   = 0;
       delete_link_data();
 
-      abc_open(&abc,26,&abc_call);
+      abc_open(&abc,DEFAULT_CHANNEL,&abc_call);
 
       leds_on(LEDS_GREEN);
 
       while(1){
         PROCESS_WAIT_EVENT();
+        
         if(etimer_expired(&lost_link_timer) && timer_was_set){
           timer_was_set = 0;
           printf("lost link detected. will continue sending\n");

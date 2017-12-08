@@ -59,7 +59,6 @@ static radio_value_t  next_channel, next_txpower, current_channel, current_txpow
 static void abc_recv();
 static const struct abc_callbacks abc_call = {abc_recv};
 
-/* delete old link data*/
 static void delete_link_data(){
   memset(message.link_data, 0, MAX_NODES-1);
 }
@@ -69,11 +68,11 @@ static int get_channel(){
   return current_channel;
 }
 
+/* sets radio channel and opens new abc connection to specified channel */
 static void set_channel(int channel){
   abc_close(&abc);
   abc_open(&abc,channel,&abc_call);
-  printf("channel set: %i\n",NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel));
-  printf("channel now: %i\n",get_channel());
+  NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, channel);
 }
 
 static int get_txpower(){
@@ -128,7 +127,6 @@ static void sendmsg(){
 
 /* fill measured RSSI, LQI, or dropped counter into link data array*/
 static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char received_rssi, char received_lqi, uint8_t link_param){
-
   /* RSSI */
   if(link_param == 0){
     if(node_id > received_node_id){
