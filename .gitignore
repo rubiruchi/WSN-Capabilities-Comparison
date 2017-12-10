@@ -20,3 +20,4 @@ node.srf06-cc26xx
 sink.hex
 sink.openmote-cc2538
 sink.srf06-cc26xx
+Makefile.target

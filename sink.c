@@ -1,6 +1,5 @@
 #include "node.h"
 #include "dev/serial-line.h"
-#include "rf-core/rf-ble.h"
 #ifdef z1
 #include "dev/uart0.h"
 #else
@@ -23,22 +22,17 @@ static uint8_t recently_reset;
 static void abc_recv(){
     msg_t received_msg = *(msg_t*) packetbuf_dataptr();
 
+    print_link_data(&received_msg);
+
     fill_link_data(received_msg.node_id,
       received_msg.last_node,
       packetbuf_attr(PACKETBUF_ATTR_RSSI),
       packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
       received_msg.link_param);
 
-      print_link_data(&received_msg);
-
       if(received_msg.node_id == last_node_id){
         rounds_failed = 0;
-        if(!recently_reset){
-          current_round++;
-        }
         round_finished = 1;
-        recently_reset = 0;
-        prep_next_round();
       }
 
 }
@@ -56,11 +50,13 @@ PROCESS_THREAD(sink_process, ev, data){
   serial_line_init();
 
   message.node_id = node_id;
+  current_channel = DEFAULT_CHANNEL;
+  current_txpower = DEFAULT_TX_POWER;
 
   abc_open(&abc, DEFAULT_CHANNEL, &abc_call);
 
   rounds_failed = 0;
-  recently_reset = 0;
+  recently_reset = 1; //has to be 1 initially to ensure that all nodes report back in initail round
   number_of_rounds = -1;
 
   leds_on(LEDS_ALL);
@@ -113,6 +109,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
     /* send rounds */
     while(current_round <= number_of_rounds){
+      printf("NODE$Round=%i\n",current_round);
       sendmsg();
       round_finished = 0;
       etimer_set(&round_timer,(CLOCK_SECOND/10)*last_node_id);
@@ -120,34 +117,44 @@ PROCESS_THREAD(sink_process, ev, data){
       /* receive round */
     PROCESS_WAIT_EVENT_UNTIL(round_finished == 1 || etimer_expired(&round_timer));
     if(round_finished){
-        printf("NODE$round finished\n");
+      printf("NODE$round %i finished\n",current_round);
+      if(!recently_reset){
+        prep_next_round();
+        current_round++;
+        }
       }else if(etimer_expired(&round_timer)){
        printf("NODE$round failed\n");
        rounds_failed++;
       }
 
 
-      /* wait for script to check if all nodes answered in first round */
-      if(current_round == 1 && round_finished){
+      /* wait for script to check if all nodes answered in critical round */
+      if(recently_reset == 1 && round_finished){
         delete_link_data();
         printf("continue or resend ?\n");
         PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
         char* str_ptr = (char*) data;
         if(!strcmp(str_ptr,"resend")){
-          current_round--;
+          recently_reset = 1;
+        }else{
+          prep_next_round();
+          recently_reset = 0;
         }
       }
 
       if(rounds_failed == 4){
-        printf("NODE$reset\n");
-        set_channel(DEFAULT_CHANNEL);
-        set_txpower(DEFAULT_TX_POWER);
-        rounds_failed = 0;
-        recently_reset = 1;
+        if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
+          printf("NODE$reset\n");
+          set_channel(DEFAULT_CHANNEL);
+          set_txpower(DEFAULT_TX_POWER);
+          rounds_failed = 0;
+          recently_reset = 1;
+        }
       }
 
     }//while num of rounds
-    printf("NODE$measurement finished\n");
+    printf("NODE$measurement complete\n");
+    recently_reset = 1;
     delete_link_data();
   } // while 1 main loop
 
