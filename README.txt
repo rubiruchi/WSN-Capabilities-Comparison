@@ -14,7 +14,7 @@ Node placement:
 _________________________________________________________________________
 For compilation:
 - alway specify TARGET
-- TI Sensortag cc2650: compile with NODEID=<id> to set nodeid directly
+- TI Sensortag cc2650 and openmote cc2538: compile with NODEID=<id> to set nodeid directly
 
 For Cooja Simulation:
 
@@ -30,7 +30,7 @@ For Cooja Simulation:
 _________________________________________________________________________
 For script:
 
-- Start with: python script <platform>
-- Will scan through /dev/ and try to log into every device starting with ttyUSB
+- Start with: python script <TARGET>
+- Will scan through /dev/ and try to log into every suitable device
 - The measurements are stored in a list individually for each node
-- The resulting .json files can be found in the "Measurements" folder created in the parent directory
+- The resulting .json files can be found in the "Measurements" folder created in the parent directory of the script
