@@ -4,7 +4,7 @@ import sys
 import subprocess
 import os
 import signal
-
+from time import gmtime,strftime
 DIRECTORY_PATH = os.path.join(os.pardir,'Measurements')
 if not os.path.exists(DIRECTORY_PATH):
     os.makedirs(DIRECTORY_PATH)
@@ -23,8 +23,9 @@ node_measurements = {}
 subprocesses = []
 
 number_of_nodes = 0
-first_round = True
+current_round = 0
 round_failed = False
+recently_reset = True
 checklist = range(1,number_of_nodes+1)
 
 # handles Ctrl+C termination
@@ -57,13 +58,17 @@ def write_to_subprocesses(str):
         process.stdin.write(str)
 
 def handle_line(line):
-    global first_round
     global checklist
     global round_failed
     global node_measurements
+    global current_round
+    global recently_reset
+
+    if '=' in line:
+        current_round = int(line.split('=')[1].rstrip())
 
     #bundle link data from a node
-    if ":" in line:
+    if ':' in line:
         if len(line.split(':')) is 6:
             now = time.time()
             measurement = {}
@@ -71,7 +76,7 @@ def handle_line(line):
             channel = line.split(':')[1]
             txpower = line.split(':')[2]
 
-            if first_round and int(node_id) in checklist:
+            if (current_round == 0 or recently_reset) and int(node_id) in checklist:
                 checklist.remove(int(node_id))
 
             measurement["from"]    = line.split(":")[3]
@@ -81,8 +86,8 @@ def handle_line(line):
             measurement["channel"] = channel
             measurement["txpower"] = txpower
 
-            #only add if link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
-            if (not first_round and not round_failed) or not(int(node_id) < int(measurement["from"])):
+            #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
+            if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"]))  :
                 node_measurements[str(node_id)].append(measurement)
                 filename = platform+"_"+str(node_id)
                 with open(os.path.join(DIRECTORY_PATH,filename),'w') as f:
@@ -90,24 +95,25 @@ def handle_line(line):
         else:
             sys.stdout.write(">line broken\n")
 
-    if line == 'round finished\n':
-        #first round is only complete if all nodes report back, so checklist has to be empty
-        if first_round and not checklist:
-            sys.stdout.write(">first round ok. continuing\n")
-            first_round = False
+    if 'finished'in line:
+        round_failed = False
+        #initial round or rounds after reset only complete if all nodes report back, so checklist has to be empty
+        if (current_round == 0 or recently_reset) and not checklist:
+            sys.stdout.write(">round ok. continuing\n")
             write_to_subprocesses('continue\n')
-        elif first_round and checklist:
+            recently_reset = False
+        elif (current_round == 0 or recently_reset) and checklist:
             checklist = range(1,number_of_nodes+1)
-            sys.stdout.write(">resend first round\n")
+            sys.stdout.write(">resend round\n")
             write_to_subprocesses('resend\n')
 
     if line == 'round failed\n':
         round_failed = True
 
     if line == 'reset\n':
-        sys.stdout.write(">New first round\n")
-        first_round = True
+        sys.stdout.write(">All nodes must report back again\n")
         checklist = range(1,number_of_nodes+1)
+        recently_reset = True
 
 def throw_out_debugger():
     highest = 0
@@ -135,18 +141,19 @@ subprocess_init()
 for config in configurations:
     signal.signal(signal.SIGINT, signal_handler)
     number_of_nodes = int(config[0])
-    first_round = True
+    current_round = 0
     round_failed = False
     checklist = range(1,number_of_nodes+1)
     load_node_measurements()
 
-    sys.stdout.write(">subprocesses:"+str(len(subprocesses)))
     sys.stdout.write(">sending:"+config+"\n")
     write_to_subprocesses(config+"\n")
 
+    starttime = time.time()
     line = get_untagged_input()
-    while line != 'measurement finished\n':
+    while line != 'measurement complete\n':
         line = get_untagged_input()
 
-
+    elapsed_time = time.time() -starttime
+    print(strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")
