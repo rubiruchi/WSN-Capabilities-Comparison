@@ -5,21 +5,20 @@ import subprocess
 import os
 import signal
 from time import gmtime,strftime
-DIRECTORY_PATH = os.path.join(os.pardir,'Measurements')
-if not os.path.exists(DIRECTORY_PATH):
-    os.makedirs(DIRECTORY_PATH)
 
 if len(sys.argv) < 2:
     sys.exit("please define TARGET.\n eg.: python script.py sky\n")
 
 platform = sys.argv[1]
 
+DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
+if not os.path.exists(DIRECTORY_PATH):
+    os.makedirs(DIRECTORY_PATH)
+
 # load config
-with open('config.json') as config_file:
+with open(os.path.join(DIRECTORY_PATH,'config.json')) as config_file:
     configurations = json.load(config_file)
 
-#dict that maps nodeid to a list of measurements
-node_measurements = {}
 subprocesses = []
 
 number_of_nodes = 0
@@ -27,27 +26,19 @@ current_round = 0
 round_failed = False
 recently_reset = True
 checklist = range(1,number_of_nodes+1)
+broken_lines_counter = 0
+same_round_counter = 0
 
 # handles Ctrl+C termination
 def signal_handler(signum,frame):
     print("exiting process")
     sys.exit(0)
 
-def load_node_measurements():
-    for node_id in range(1,number_of_nodes+1):
-        filename = platform+"_"+str(node_id)
-        try:
-            with open(os.path.join(DIRECTORY_PATH,filename),'r') as measurement_file:
-                node_measurements[str(node_id)] = json.load(measurement_file)
-        except IOError:
-            node_measurements[str(node_id)] = []
-
 #checks if the input is script relevant by splitting at '$' and returning the split part
 def get_untagged_input():
     for process in subprocesses:
         line = process.stdout.readline()
         if '$' in line:
-            sys.stdout.write(line.split('$')[1])
             handle_line(line.split('$')[1])
             return line.split('$')[1]
         else:
@@ -60,16 +51,18 @@ def write_to_subprocesses(str):
 def handle_line(line):
     global checklist
     global round_failed
-    global node_measurements
     global current_round
     global recently_reset
+    global broken_lines
 
     if '=' in line:
+        sys.stdout.write(line)
         current_round = int(line.split('=')[1].rstrip())
 
     #bundle link data from a node
-    if ':' in line:
+    elif ':' in line:
         if len(line.split(':')) is 6:
+            broken_lines = 0
             now = time.time()
             measurement = {}
             node_id = line.split(':')[0]
@@ -88,14 +81,16 @@ def handle_line(line):
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
             if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"]))  :
-                node_measurements[str(node_id)].append(measurement)
-                filename = platform+"_"+str(node_id)
-                with open(os.path.join(DIRECTORY_PATH,filename),'w') as f:
-                    json.dump(node_measurements[str(node_id)],f)
+                filename = platform+"_"+str(node_id)+".txt"
+                with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+                    f.write(str(measurement)+'\n')
         else:
             sys.stdout.write(">line broken\n")
+            boken_lines += 1
 
-    if 'finished'in line:
+
+    elif 'finished'in line:
+        broken_lines = 0
         round_failed = False
         #initial round or rounds after reset only complete if all nodes report back, so checklist has to be empty
         if (current_round == 0 or recently_reset) and not checklist:
@@ -107,13 +102,22 @@ def handle_line(line):
             sys.stdout.write(">resend round\n")
             write_to_subprocesses('resend\n')
 
-    if line == 'round failed\n':
+    elif line == 'round failed\n':
         round_failed = True
 
-    if line == 'reset\n':
+    elif line == 'reset\n':
+        broken_lines = 0
         sys.stdout.write(">All nodes must report back again\n")
         checklist = range(1,number_of_nodes+1)
         recently_reset = True
+
+    elif line == 'measurement complete\n':
+        broken_lines = 0
+        return
+
+    else:
+        sys.stdout.write(">line broken\n")
+        boken_lines +=1
 
 def throw_out_debugger():
     highest = 0
@@ -137,23 +141,34 @@ def subprocess_init():
 devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
 throw_out_debugger()
 subprocess_init()
+
 #loop through configs and start described experiments
+experimentstart = time.time()
 for config in configurations:
     signal.signal(signal.SIGINT, signal_handler)
     number_of_nodes = int(config[0])
     current_round = 0
     round_failed = False
     checklist = range(1,number_of_nodes+1)
-    load_node_measurements()
 
     sys.stdout.write(">sending:"+config+"\n")
     write_to_subprocesses(config+"\n")
 
     starttime = time.time()
     line = get_untagged_input()
-    while line != 'measurement complete\n':
+    while line != 'measurement complete\n' and not (broken_lines > 4):
         line = get_untagged_input()
+
+    if broken_lines > 4:
+        sys.stdout.write(">broken lines reset.")
+        # go through config file until current config is found.
+        # delete everything already done and adjust rounds of current config
+        # trigger watchdog reset in sink node
+
+        sys.stdout.write(">last config was:"+ config+"\n")
+        sys.exit(0)
 
     elapsed_time = time.time() -starttime
     print(strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")
+print("Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))
