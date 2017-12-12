@@ -28,19 +28,35 @@ recently_reset = True
 checklist = range(1,number_of_nodes+1)
 broken_lines_counter = 0
 same_round_counter = 0
+last_round = -1
 
 # handles Ctrl+C termination
 def signal_handler(signum,frame):
-    print("exiting process")
+    print(">exiting process")
     sys.exit(0)
+
+#only works for single sink setup as of now
+def reboot_sink():
+    print(">rebooting sink")
+    # trigger watchdog reset in sink node(s)
+    write_to_subprocesses("reboot\n")
+    while(get_untagged_input != 'Booted\n'):
+        print("...")
+        write_to_subprocesses("reboot\n")
+        sys.sleep(0.5) #to give device time to reboot
+
+    print(">Sink rebooted")
 
 #checks if the input is script relevant by splitting at '$' and returning the split part
 def get_untagged_input():
     for process in subprocesses:
         line = process.stdout.readline()
-        if '$' in line:
-            handle_line(line.split('$')[1])
+        if line.startswith('NODE$'):
             return line.split('$')[1]
+        elif '$' in line:
+            print(">line broken")
+            broken_lines += 1
+            return ""
         else:
             return ""
 
@@ -55,9 +71,18 @@ def handle_line(line):
     global recently_reset
     global broken_lines
 
-    if '=' in line:
+    if line == "":
+        return
+
+    if line.startswith('Round=') and len(line) < 10:     #additional check to make script more robust in case lines are broken
+        broken_lines = 0;
         sys.stdout.write(line)
         current_round = int(line.split('=')[1].rstrip())
+        if current_round == last_round:
+            same_round_counter += 1
+        else:
+            same_round_counter = 0
+            last_round = current_round
 
     #bundle link data from a node
     elif ':' in line:
@@ -89,7 +114,8 @@ def handle_line(line):
             boken_lines += 1
 
 
-    elif 'finished'in line:
+    elif line == 'round finished\n':
+        print("Round {} finished".format(str(current_round)))
         broken_lines = 0
         round_failed = False
         #initial round or rounds after reset only complete if all nodes report back, so checklist has to be empty
@@ -141,14 +167,16 @@ def subprocess_init():
 devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
 throw_out_debugger()
 subprocess_init()
+signal.signal(signal.SIGINT, signal_handler)
 
 #loop through configs and start described experiments
 experimentstart = time.time()
 for config in configurations:
-    signal.signal(signal.SIGINT, signal_handler)
     number_of_nodes = int(config[0])
     current_round = 0
     round_failed = False
+    same_round_counter = 0
+    last_round = -1
     checklist = range(1,number_of_nodes+1)
 
     sys.stdout.write(">sending:"+config+"\n")
@@ -156,19 +184,32 @@ for config in configurations:
 
     starttime = time.time()
     line = get_untagged_input()
-    while line != 'measurement complete\n' and not (broken_lines > 4):
+    handle_line(line);
+    while line != 'measurement complete\n':
+        #if 4 lines in a row couldn't be read because they are broken
+        if broken_lines > 4:
+            print(">broken lines reset.")
+            print(">last config was:"+config)
+            reboot_sink()
+            # adjust rounds of current config
+            config.rstrip('200')
+            config = config + str(200 - current_round)
+            write_to_subprocesses(config+"\n")
+
+        #if the same round is being send more than 12 times either channel or tx power isn't working, so skip measurement next time sink is waiting for validation
+        if same_round_counter > 12
+            print(">Skipping this config")
+            reboot_sink()
+            break
+        
         line = get_untagged_input()
+        handle_line(line)
 
-    if broken_lines > 4:
-        sys.stdout.write(">broken lines reset.")
-        # go through config file until current config is found.
-        # delete everything already done and adjust rounds of current config
-        # trigger watchdog reset in sink node
 
-        sys.stdout.write(">last config was:"+ config+"\n")
-        sys.exit(0)
 
     elapsed_time = time.time() -starttime
-    print(strftime("%H:%M:%S",gmtime(elapsed_time)))
+    print(">"+strftime("%H:%M:%S",gmtime(elapsed_time)))
+
+
 sys.stdout.write(">Finished\n")
-print("Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))
+print(">Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))

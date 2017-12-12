@@ -53,12 +53,12 @@ static void abc_recv(){
       /* lost link detection upwards sending*/
       if(received_msg.node_id < node_id-1){
         int wait_time = (node_id - received_msg.node_id);
-        etimer_set(&lost_link_timer, (CLOCK_SECOND/10) * wait_time); //TODO test if sufficient time
+        etimer_set(&lost_link_timer, (CLOCK_SECOND/20) * wait_time); //TODO test if sufficient time
         lost_link_timer.p = &node_process;
         timer_was_set = 1;
       }
 
-      etimer_set(&emergency_timer,(CLOCK_SECOND/10)*last_node_id*4);
+      etimer_set(&emergency_timer,(CLOCK_SECOND/20)*last_node_id*4);
       emergency_timer.p = &node_process;
 
     }

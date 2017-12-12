@@ -119,9 +119,9 @@ static void print_link_data(msg_t* msg){
 /* print message, broadcast message, delete message*/
 static void sendmsg(){
   leds_toggle(LEDS_RED);
-  print_link_data(&message);
   packetbuf_copyfrom(&message,sizeof(message));
   abc_send(&abc);
+  print_link_data(&message);
   delete_link_data();
 }
 
