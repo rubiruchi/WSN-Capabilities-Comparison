@@ -1,11 +1,10 @@
-import time
 import json
 import sys
 import subprocess
 import os
 import signal
 import smtplib
-from time import gmtime,strftime
+from time import gmtime,strftime,time
 from email.mime.text import MIMEText
 
 
@@ -14,15 +13,23 @@ if len(sys.argv) < 2:
 
 platform = sys.argv[1]
 
-DIRECTORY_PATH = os.path.join('/media/nevin/D29077E29077CB8B/Measurements/{}'.format(platform))
+#if stick is present:use stick. if not, use pardir
+DIRECTORY_PATH = os.path.join('/media/nevin/D29077E29077CB8B'.format(platform))
 if not os.path.exists(DIRECTORY_PATH):
     DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
+    if not os.path.exists(DIRECTORY_PATH):
+        os.makedirs(DIRECTORY_PATH)
+else:
+    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'/Measurements/{}'.format(platform))
     if not os.path.exists(DIRECTORY_PATH):
         os.makedirs(DIRECTORY_PATH)
 
 # load config
 with open(os.path.join(DIRECTORY_PATH,'config.json')) as config_file:
     configurations = json.load(config_file)
+
+today = strftime("%d,%m,%y %H:%M:%S",time())
+DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'/today')
 
 subprocesses = []
 
@@ -34,6 +41,7 @@ checklist = range(1,number_of_nodes+1)
 broken_lines_counter = 0
 same_round_counter = 0
 last_round = -1
+filename = ""
 
 #sends mail to emails specified in the config
 def sendMail(message):
@@ -95,6 +103,7 @@ def handle_line(line):
     global broken_lines_counter
     global last_round
     global same_round_counter
+    global filename
 
     if line == "":
         return
@@ -113,7 +122,7 @@ def handle_line(line):
     elif ':' in line:
         if len(line.split(':')) is 6:
             broken_lines_counter = 0
-            now = time.time()
+            now = time()
             measurement = {}
             node_id = line.split(':')[0]
             channel = line.split(':')[1]
@@ -130,8 +139,7 @@ def handle_line(line):
             measurement["txpower"] = txpower
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
-            if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"]))  :
-                filename = platform+"_"+str(node_id)+".txt"
+            if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"])):
                 with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
                     f.write(str(measurement)+'\n')
         else:
@@ -197,7 +205,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 #loop through configs and start described experiments
 #sendMail("Expermient with {} started".format(platform))
-experimentstart = time.time()
+experimentstart = time()
 for config in configurations:
     number_of_nodes = int(config[0])
     current_round = 0
@@ -205,11 +213,12 @@ for config in configurations:
     same_round_counter = 0
     last_round = -1
     checklist = range(1,number_of_nodes+1)
+    filename = config
 
     sys.stdout.write(">sending:"+config+"\n")
     write_to_subprocesses(config+"\n")
 
-    starttime = time.time()
+    starttime = time()
     line = get_untagged_input()
     handle_line(line);
     while line != 'measurement complete\n':
@@ -234,7 +243,7 @@ for config in configurations:
 
 
 
-    elapsed_time = time.time() -starttime
+    elapsed_time = time() -starttime
     print(">"+strftime("%H:%M:%S",gmtime(elapsed_time)))
 
 #sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
