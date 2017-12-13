@@ -105,10 +105,12 @@ def handle_line(line):
     global same_round_counter
     global filename
 
-    if line == "":
-        return
+    if line.startswith('Temp@') and len(line) < 9: #additional check is to make script more robust in case lines are broken
+        temperature = line.split('@')[1]
+        with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+            f.write(temperature)
 
-    if line.startswith('Round=') and len(line) < 11:     #additional check to make script more robust in case lines are broken
+    elif line.startswith('Round=') and len(line) < 11:
         broken_lines_counter = 0;
         sys.stdout.write(line)
         current_round = int(line.split('=')[1].rstrip())
@@ -223,7 +225,7 @@ for config in configurations:
     handle_line(line);
     while line != 'measurement complete\n':
         #if 4 lines in a row couldn't be read because they are broken
-        if broken_lines_counter > 4:
+        if broken_lines_counter > 6:
             print(">broken lines reset.")
             print(">last config was:"+config)
             reboot_sink()
@@ -241,10 +243,10 @@ for config in configurations:
         line = get_untagged_input()
         handle_line(line)
 
-
-
     elapsed_time = time() -starttime
     print(">"+strftime("%H:%M:%S",gmtime(elapsed_time)))
+    with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+        f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 
 #sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")

@@ -9,6 +9,24 @@
 #include "dev/uart1.h"
 #endif
 
+#if defined(z1) || defined(sky)
+#define sht11
+#define TEMPSENSOR sht11_sensor
+#include "dev/sht11/sht11-sensor.h"
+#endif
+
+#ifdef openmote
+#define sht21
+#include "dev/sht21.h"
+#define TEMPSENSOR sht21
+#endif
+
+#ifdef sensortag
+#define hdc
+#include "hdc-1000-sensor.h"
+#define TEMPSENSOR hdc_1000_sensor
+#endif
+
 /*---------------------------------------------------------------------------*/
 PROCESS(sink_process, "sink process");
 AUTOSTART_PROCESSES(&sink_process);
@@ -37,6 +55,21 @@ static void abc_recv(){
       }
 
 }
+
+/* in °C */
+static void read_temperature(){
+  #ifdef sht11
+  printf("NODE$Temp@%u\n",(unsigned)(-39.60 + 0.01 * sht11_temp()));
+  #endif
+
+  #ifdef sht21
+  printf("NODE$Temp@%u\n", sht21.value(SHT21_READ_TEMP) / 100);
+  #endif
+
+  #ifdef hdc
+  printf("NODE$Temp@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP); / 100);
+  #endif
+}
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(sink_process, ev, data){
   PROCESS_BEGIN();
@@ -49,6 +82,8 @@ PROCESS_THREAD(sink_process, ev, data){
   #endif
 
   serial_line_init();
+
+  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, 0)
 
   message.node_id = node_id;
   current_channel = DEFAULT_CHANNEL;
@@ -108,6 +143,10 @@ PROCESS_THREAD(sink_process, ev, data){
       }
 
     }
+
+    SENSORS_ACTIVATE(TEMPSENSOR);
+    read_temperature();
+    SENSORS_DEACTIVATE(TEMPSENSOR);
 
     /* send rounds */
     while(current_round <= number_of_rounds){
