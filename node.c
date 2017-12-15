@@ -80,7 +80,7 @@ static void abc_recv(){
       message.link_param   = 0;
       delete_link_data();
 
-      NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, 0)
+      NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, 0);
 
       abc_open(&abc,DEFAULT_CHANNEL,&abc_call);
 

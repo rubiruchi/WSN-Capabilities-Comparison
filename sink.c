@@ -16,7 +16,8 @@
 #endif
 
 #ifdef openmote
-#define sht21
+#define sht21_s
+#include "dev/button-sensor.h" //have to include because sht21.h doesn't enable SONSORS_...
 #include "dev/sht21.h"
 #define TEMPSENSOR sht21
 #endif
@@ -59,15 +60,16 @@ static void abc_recv(){
 /* in °C */
 static void read_temperature(){
   #ifdef sht11
+  sht11_init();
   printf("NODE$Temp@%u\n",(unsigned)(-39.60 + 0.01 * sht11_temp()));
   #endif
 
-  #ifdef sht21
+  #ifdef sht21_s
   printf("NODE$Temp@%u\n", sht21.value(SHT21_READ_TEMP) / 100);
   #endif
 
   #ifdef hdc
-  printf("NODE$Temp@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP); / 100);
+  printf("NODE$Temp@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP) / 100);
   #endif
 }
 /*---------------------------------------------------------------------------*/
@@ -83,7 +85,7 @@ PROCESS_THREAD(sink_process, ev, data){
 
   serial_line_init();
 
-  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, 0)
+  NETSTACK_RADIO.set_value(RADIO_PARAM_TX_MODE, 0);
 
   message.node_id = node_id;
   current_channel = DEFAULT_CHANNEL;

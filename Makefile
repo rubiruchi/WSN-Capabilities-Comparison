@@ -16,10 +16,12 @@ CFLAGS += -D sensortag=1
 endif
 
 ifeq ($(TARGET),sky)
+MODULES += dev/sht11
 CFLAGS += -D $(TARGET)=1
 endif
 
 ifeq ($(TARGET),z1)
+MODULES += dev/sht11
 CFLAGS += -D $(TARGET)=1
 endif
 

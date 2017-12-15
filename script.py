@@ -14,13 +14,13 @@ if len(sys.argv) < 2:
 platform = sys.argv[1]
 
 #if stick is present:use stick. if not, use pardir
-DIRECTORY_PATH = os.path.join('/media/nevin/D29077E29077CB8B'.format(platform))
+DIRECTORY_PATH = '/media/nevin/D29077E29077CB8B'
 if not os.path.exists(DIRECTORY_PATH):
     DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
     if not os.path.exists(DIRECTORY_PATH):
         os.makedirs(DIRECTORY_PATH)
 else:
-    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'/Measurements/{}'.format(platform))
+    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'Measurements/{}'.format(platform))
     if not os.path.exists(DIRECTORY_PATH):
         os.makedirs(DIRECTORY_PATH)
 
@@ -28,8 +28,10 @@ else:
 with open(os.path.join(DIRECTORY_PATH,'config.json')) as config_file:
     configurations = json.load(config_file)
 
-today = strftime("%d,%m,%y %H:%M:%S",time())
-DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'/today')
+today = strftime("%d,%m,%y-%H:%M:%S",time())
+DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,today)
+if not os.path.exists(DIRECTORY_PATH):
+    os.makedirs(DIRECTORY_PATH)
 
 subprocesses = []
 
@@ -82,10 +84,6 @@ def get_untagged_input():
         line = process.stdout.readline()
         if line.startswith('NODE$'):
             return line.split('$')[1]
-        elif '$' in line:
-            sys.stdout.write(">line broken: "+line)
-            broken_lines_counter += 1
-            return ""
         else:
             return ""
 
@@ -105,9 +103,13 @@ def handle_line(line):
     global same_round_counter
     global filename
 
+    if line == "":
+        return
+
     if line.startswith('Temp@') and len(line) < 9: #additional check is to make script more robust in case lines are broken
+        broken_lines_counter = 0
         temperature = line.split('@')[1]
-        with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+        with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
             f.write(temperature)
 
     elif line.startswith('Round=') and len(line) < 11:
@@ -142,7 +144,7 @@ def handle_line(line):
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
             if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"])):
-                with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+                with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
                     f.write(str(measurement)+'\n')
         else:
             sys.stdout.write(">line broken: "+line)
@@ -245,7 +247,7 @@ for config in configurations:
 
     elapsed_time = time() -starttime
     print(">"+strftime("%H:%M:%S",gmtime(elapsed_time)))
-    with open(os.path.join(DIRECTORY_PATH,filename),'a') as f:
+    with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
         f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 
 #sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
