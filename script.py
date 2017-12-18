@@ -4,7 +4,7 @@ import subprocess
 import os
 import signal
 import smtplib
-from time import gmtime,strftime,time
+from time import gmtime,strftime,time,sleep
 from email.mime.text import MIMEText
 
 
@@ -54,7 +54,7 @@ def sendMail(message):
 
     s = smtplib.SMTP_SSL('smtp.gmail.com',465)
     s.login("DoorMonitoringSystem@gmail.com","WSN-Project17")
-    s.sendmail("DoorMonitoringSystem@gmail.com",to,msg.as_string())
+    s.sendmail("DoorMonitoringSystem@gmail.com","nevin.allwood@yahoo.de",msg.as_string())
     s.quit()
 
 #handles Ctrl+C termination
@@ -69,17 +69,16 @@ def reboot_sink():
     print(">rebooting sink")
     # trigger watchdog reset in sink node(s)
     write_to_subprocesses("reboot\n")
-    while(get_untagged_input != 'Booted\n'):
-        print("...")
-        write_to_subprocesses("reboot\n")
-        time.sleep(5) #to give device time to reboot
+    line = get_untagged_input()
+    handle_line(line)
+    while(line != 'Booted\n'):
+	line = get_untagged_input()
+        handle_line(line)
 
     print(">Sink rebooted")
 
 #checks if the input is script relevant by splitting at '$' and returning the split part
 def get_untagged_input():
-    global broken_lines_counter
-
     for process in subprocesses:
         line = process.stdout.readline()
         if line.startswith('NODE$'):
@@ -114,7 +113,7 @@ def handle_line(line):
 
     elif line.startswith('Round=') and len(line) < 11:
         broken_lines_counter = 0;
-        sys.stdout.write(line)
+        #sys.stdout.write(line)
         current_round = int(line.split('=')[1].rstrip())
         if current_round == last_round:
             same_round_counter += 1
@@ -142,7 +141,7 @@ def handle_line(line):
             measurement["time"]    = now
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
-            if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"])):
+            if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["sender"])):
                 with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
                     f.write(str(measurement)+'\n')
         else:
@@ -223,10 +222,11 @@ for config in configurations:
 
     starttime = time()
     line = get_untagged_input()
-    handle_line(line);
+    handle_line(line)
     while line != 'measurement complete\n':
         #if 4 lines in a row couldn't be read because they are broken
         if broken_lines_counter > 6:
+            broken_lines_counter = 0
             print(">broken lines reset.")
             print(">last config was:"+config)
             reboot_sink()
@@ -237,6 +237,7 @@ for config in configurations:
 
         #if the same round is being send more than 12 times either channel or tx power isn't working, so skip measurement next time sink is waiting for validation
         if same_round_counter > 12:
+	    same_round_counter = 0
             print(">Skipping this config")
             reboot_sink()
             break
@@ -249,6 +250,7 @@ for config in configurations:
     with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
         f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 
+elapsed_time = time() -experimentstart
 sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")
 print(">Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))
