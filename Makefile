@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = node sink
+CONTIKI_PROJECT = node sink thermometer
 
 all: $(CONTIKI_PROJECT)
 
