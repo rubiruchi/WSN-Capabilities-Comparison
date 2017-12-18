@@ -17,8 +17,9 @@
 
 #ifdef openmote
 #define sht21_s
-#include "dev/button-sensor.h" //have to include because sht21.h doesn't enable SONSORS_...
+#include "dev/button-sensor.h"
 #include "dev/sht21.h"
+
 #define TEMPSENSOR sht21
 #endif
 
@@ -97,10 +98,15 @@ PROCESS_THREAD(sink_process, ev, data){
   recently_reset = 1; //has to be 1 initially to ensure that all nodes report back in initail round
   number_of_rounds = -1;
 
+  leds_on(LEDS_GREEN);
+  SENSORS_ACTIVATE(TEMPSENSOR);
   leds_on(LEDS_ALL);
-  printf("NODE$Booted\n");
-  printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
 
+
+
+  printf("NODE$Booted\n");
+
+  printf("Enter parameters in the following way:\n <last node>,<channel>,<txpower>,<link param>,<number of rounds>\n");
 /* main loop */
   while(1){
 
@@ -143,12 +149,9 @@ PROCESS_THREAD(sink_process, ev, data){
         message.next_channel = next_channel;
         message.next_txpower = next_txpower;
       }
-
     }
 
-    SENSORS_ACTIVATE(TEMPSENSOR);
     read_temperature();
-    SENSORS_DEACTIVATE(TEMPSENSOR);
 
     /* send rounds */
     while(current_round <= number_of_rounds){

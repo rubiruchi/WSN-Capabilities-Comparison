@@ -14,7 +14,7 @@ if len(sys.argv) < 2:
 platform = sys.argv[1]
 
 #if stick is present:use stick. if not, use pardir
-DIRECTORY_PATH = '/media/nevin/D29077E29077CB8B'
+DIRECTORY_PATH = '/media/pi/Experiments'
 if not os.path.exists(DIRECTORY_PATH):
     DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
     if not os.path.exists(DIRECTORY_PATH):
@@ -28,7 +28,7 @@ else:
 with open(os.path.join(DIRECTORY_PATH,'config.json')) as config_file:
     configurations = json.load(config_file)
 
-today = strftime("%d,%m,%y-%H:%M:%S",time())
+today = strftime("%d,%m,%y_%H-%M",gmtime(time()))
 DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,today)
 if not os.path.exists(DIRECTORY_PATH):
     os.makedirs(DIRECTORY_PATH)
@@ -72,7 +72,7 @@ def reboot_sink():
     while(get_untagged_input != 'Booted\n'):
         print("...")
         write_to_subprocesses("reboot\n")
-        time.sleep(0.5) #to give device time to reboot
+        time.sleep(5) #to give device time to reboot
 
     print(">Sink rebooted")
 
@@ -106,7 +106,7 @@ def handle_line(line):
     if line == "":
         return
 
-    if line.startswith('Temp@') and len(line) < 9: #additional check is to make script more robust in case lines are broken
+    if line.startswith('Temp@') and len(line) < 10: #additional check is to make script more robust in case lines are broken
         broken_lines_counter = 0
         temperature = line.split('@')[1]
         with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
@@ -129,18 +129,17 @@ def handle_line(line):
             now = time()
             measurement = {}
             node_id = line.split(':')[0]
-            channel = line.split(':')[1]
-            txpower = line.split(':')[2]
 
             if (current_round == 0 or recently_reset) and int(node_id) in checklist:
                 checklist.remove(int(node_id))
 
-            measurement["from"]    = line.split(":")[3]
+	    measurement["receiver"]= node_id
+            measurement["channel"] = line.split(':')[1]
+            measurement["txpower"] = line.split(':')[2]
+	    measurement["sender"]  = line.split(":")[3]
             measurement["param"]   = line.split(":")[4]
             measurement["value"]   = line.split(":")[5].rstrip()
             measurement["time"]    = now
-            measurement["channel"] = channel
-            measurement["txpower"] = txpower
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
             if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["from"])):
@@ -208,7 +207,7 @@ subprocess_init()
 signal.signal(signal.SIGINT, signal_handler)
 
 #loop through configs and start described experiments
-#sendMail("Expermient with {} started".format(platform))
+sendMail("Expermient with {} started".format(platform))
 experimentstart = time()
 for config in configurations:
     number_of_nodes = int(config[0])
@@ -250,6 +249,6 @@ for config in configurations:
     with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
         f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 
-#sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
+sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")
 print(">Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))
