@@ -1,8 +1,9 @@
 #include "contiki.h"
 #include "dev/serial-line.h"
-#include <stdlib.h>
+#include <stdio.h>
 #include "dev/uart1.h"
 #include "dev/sht11/sht11-sensor.h"
+#include "dev/leds.h"
 
 /*---------------------------------------------------------------------------*/
 PROCESS(thermometer_process, "thermometer process");
@@ -10,9 +11,8 @@ AUTOSTART_PROCESSES(&thermometer_process);
 /*---------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
 /*---------------------------------------------------------------------------*/
-PROCESS_THREAD(sink_process, ev, data){
+PROCESS_THREAD(thermometer_process, ev, data){
   PROCESS_BEGIN();
-  PROCESS_EXITHANDLER(abc_close(&abc));
 
   uart1_set_input(serial_line_input_byte);
 
