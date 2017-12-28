@@ -6,44 +6,55 @@ import signal
 import smtplib
 from time import gmtime,strftime,time,sleep
 from email.mime.text import MIMEText
-
+from nbstreamreader import NonBlockingStreamReader as NBSR
 
 if len(sys.argv) < 2:
     sys.exit("please define TARGET.\n eg.: python script.py sky\n")
 
 platform = sys.argv[1]
 
-#if stick is present:use stick. if not, use pardir
-DIRECTORY_PATH = '/media/pi/Experiments'
-if not os.path.exists(DIRECTORY_PATH):
-    DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
-    if not os.path.exists(DIRECTORY_PATH):
-        os.makedirs(DIRECTORY_PATH)
-else:
-    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'Measurements/{}'.format(platform))
-    if not os.path.exists(DIRECTORY_PATH):
-        os.makedirs(DIRECTORY_PATH)
-
-# load config
-with open(os.path.join(DIRECTORY_PATH,'config.json')) as config_file:
-    configurations = json.load(config_file)
-
-today = strftime("%d,%m,%y_%H-%M",gmtime(time()))
-DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,today)
-if not os.path.exists(DIRECTORY_PATH):
-    os.makedirs(DIRECTORY_PATH)
+DIRECTORY_PATH = ""
 
 subprocesses = []
+streamreaders = []
+configurations = []
 
 number_of_nodes = 0
 current_round = 0
 round_failed = False
 recently_reset = True
+booted = True
+complete = False
 checklist = range(1,number_of_nodes+1)
 broken_lines_counter = 0
 same_round_counter = 0
 last_round = -1
 filename = ""
+
+#creates directory in which measurements are saved in case it doesn't exist yet
+def make_directory():
+    global DIRECTORY_PATH
+    global configurations
+
+    #if stick is present:use stick. if not, use pardir
+    DIRECTORY_PATH = '/media/pi/Experiments'
+    if not os.path.exists(DIRECTORY_PATH):
+        DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
+        if not os.path.exists(DIRECTORY_PATH):
+            os.makedirs(DIRECTORY_PATH)
+    else:
+        DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'Measurements/{}'.format(platform))
+        if not os.path.exists(DIRECTORY_PATH):
+            os.makedirs(DIRECTORY_PATH)
+
+    # load config
+    with open(os.path.join(DIRECTORY_PATH,'config.json')) as config_file:
+        configurations = json.load(config_file)
+
+    today = strftime("%d,%m,%y_%H-%M",gmtime(time()))
+    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,today)
+    if not os.path.exists(DIRECTORY_PATH):
+        os.makedirs(DIRECTORY_PATH)
 
 #sends mail to emails specified in the config
 def sendMail(message):
@@ -70,25 +81,24 @@ def reboot_sink():
     # trigger watchdog reset in sink node(s)
     write_to_subprocesses("reboot\n")
     line = get_untagged_input()
-    handle_line(line)
-    while(line != 'Booted\n'):
-	line = get_untagged_input()
-        handle_line(line)
+    while(not booted):
+	    line = get_untagged_input()
 
     print(">Sink rebooted")
 
 #checks if the input is script relevant by splitting at '$' and returning the split part
 def get_untagged_input():
-    for process in subprocesses:
-        line = process.stdout.readline()
-        if line.startswith('NODE$'):
-            return line.split('$')[1]
-        else:
-            return ""
+    for reader in streamreaders:
+        line = reader.getline()
+        if line:
+            if line.startswith('NODE$'):
+                sys.stdout.write(line)
+                handle_line(line.split('$')[1])
 
 #sends a string to all registered subprocesses
 def write_to_subprocesses(str):
     for process in subprocesses:
+        #print("writing: "+str)
         process.stdin.write(str)
 
 #prints round/saves measurement/verifies round depending on input line
@@ -101,15 +111,19 @@ def handle_line(line):
     global last_round
     global same_round_counter
     global filename
+    global booted
+    global complete
 
     if line == "":
         return
 
-    if line.startswith('Temp@') and len(line) < 10: #additional check is to make script more robust in case lines are broken
+    if line == 'Booted\n':
+        booted = True
+
+    elif line.startswith('Temp@') and len(line) < 10: #additional check is to make script more robust in case lines are broken
         broken_lines_counter = 0
-        temperature = line.split('@')[1]
         with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
-            f.write(temperature)
+            f.write(line)
 
     elif line.startswith('Round=') and len(line) < 11:
         broken_lines_counter = 0;
@@ -132,10 +146,10 @@ def handle_line(line):
             if (current_round == 0 or recently_reset) and int(node_id) in checklist:
                 checklist.remove(int(node_id))
 
-	    measurement["receiver"]= node_id
+	        measurement["receiver"]= node_id
             measurement["channel"] = line.split(':')[1]
             measurement["txpower"] = line.split(':')[2]
-	    measurement["sender"]  = line.split(":")[3]
+            measurement["sender"]  = line.split(":")[3]
             measurement["param"]   = line.split(":")[4]
             measurement["value"]   = line.split(":")[5].rstrip()
             measurement["time"]    = now
@@ -173,7 +187,7 @@ def handle_line(line):
 
     elif line == 'measurement complete\n':
         broken_lines_counter = 0
-        return
+        complete = True
 
     else:
         sys.stdout.write(">line broken: "+line)
@@ -198,17 +212,22 @@ def subprocess_init():
         elif device.startswith('ttyACM'):
             sys.stdout.write('>make login TARGET={} BOARD=sensortag/cc2650 PORT=/dev/{}\n'.format(platform, device))
             process.stdin.write('make login TARGET={} BOARD=sensortag/cc2650 PORT=/dev/{}\n'.format(platform, device))
-        subprocesses.append(process)
 
+        subprocesses.append(process)
+        sr = NBSR(process.stdout)
+        streamreaders.append(sr)
+
+make_directory()
 devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
 throw_out_debugger()
 subprocess_init()
 signal.signal(signal.SIGINT, signal_handler)
 
 #loop through configs and start described experiments
-sendMail("Expermient with {} started".format(platform))
+#sendMail("Expermient with {} started".format(platform))
 experimentstart = time()
 for config in configurations:
+    complete = False
     number_of_nodes = int(config[0])
     current_round = 0
     round_failed = False
@@ -222,13 +241,13 @@ for config in configurations:
 
     starttime = time()
     line = get_untagged_input()
-    handle_line(line)
-    while line != 'measurement complete\n':
+    while not complete:
         #if 4 lines in a row couldn't be read because they are broken
         if broken_lines_counter > 6:
             broken_lines_counter = 0
             print(">broken lines reset.")
             print(">last config was:"+config)
+            booted = False
             reboot_sink()
             # adjust rounds of current config
             config.rstrip('200')
@@ -239,11 +258,11 @@ for config in configurations:
         if same_round_counter > 12:
 	    same_round_counter = 0
             print(">Skipping this config")
+            booted = False
             reboot_sink()
             break
 
         line = get_untagged_input()
-        handle_line(line)
 
     elapsed_time = time() -starttime
     print(">"+strftime("%H:%M:%S",gmtime(elapsed_time)))
@@ -251,6 +270,6 @@ for config in configurations:
         f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 
 elapsed_time = time() -experimentstart
-sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
+#sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")
 print(">Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))
