@@ -62,7 +62,10 @@ static void abc_recv(){
 static void read_temperature(){
   #ifdef sht11
   sht11_init();
-  printf("NODE$Temp@%u\n",(unsigned)(-39.60 + 0.01 * sht11_temp()));
+  unsigned rh = sht11_humidity();
+  printf("NODE$Temp@%u | Hum@%u\n",
+  ((unsigned)(-39.60 + 0.01 * sht11_temp())),
+  ((unsigned) (-4 + 0.0405 * rh -2.8e-6 * (rh * rh))) );
   #endif
 
   #ifdef sht21_s
@@ -101,8 +104,6 @@ PROCESS_THREAD(sink_process, ev, data){
   leds_on(LEDS_GREEN);
   SENSORS_ACTIVATE(TEMPSENSOR);
   leds_on(LEDS_ALL);
-
-
 
   printf("NODE$Booted\n");
 

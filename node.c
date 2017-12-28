@@ -32,7 +32,7 @@ static void abc_recv(){
     message.next_txpower = next_txpower;
     message.link_param = received_msg.link_param;
 
-
+    /* put content of recieved msg and link readings into own msg */
     fill_link_data(received_msg.node_id,
       received_msg.last_node,
       packetbuf_attr(PACKETBUF_ATTR_RSSI),
@@ -97,8 +97,9 @@ static void abc_recv(){
         }
 
         if(etimer_expired(&emergency_timer)){
-          printf("emergency timer expired\n");
+          //printf("emergency timer expired\n");
           if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
+            leds_blink();
             printf("emergency reset\n");
             set_channel(DEFAULT_CHANNEL);
             set_txpower(DEFAULT_TX_POWER);
