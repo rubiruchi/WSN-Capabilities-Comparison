@@ -234,7 +234,7 @@ signal.signal(signal.SIGINT, signal_handler)
 timer = Timer(write_to_subprocesses)
 
 #loop through configs and start described experiments
-#sendMail("Expermient with {} started".format(platform))
+sendMail("Expermient with {} started".format(platform))
 experimentstart = time()
 for config in configurations:
     complete = False
@@ -251,7 +251,7 @@ for config in configurations:
 
     starttime = time()
     line = get_untagged_input()
-    timer.start(30)
+    timer.start(95)
     while not complete:
         #if the same round is being send more than 12 times either channel or tx power isn't working, so skip measurement next time sink is waiting for validation
         if same_round_counter > 12:
@@ -274,6 +274,6 @@ for config in configurations:
         f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 
 elapsed_time = time() -experimentstart
-#sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
+sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
 sys.stdout.write(">Finished\n")
 print(">Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))
