@@ -7,6 +7,7 @@ import smtplib
 from time import gmtime,strftime,time,sleep
 from email.mime.text import MIMEText
 from nbstreamreader import NonBlockingStreamReader as NBSR
+from timer import Timer
 
 if len(sys.argv) < 2:
     sys.exit("please define TARGET.\n eg.: python script.py sky\n")
@@ -26,7 +27,6 @@ recently_reset = True
 booted = True
 complete = False
 checklist = range(1,number_of_nodes+1)
-broken_lines_counter = 0
 same_round_counter = 0
 last_round = -1
 filename = ""
@@ -71,9 +71,15 @@ def sendMail(message):
 #handles Ctrl+C termination
 def signal_handler(signum,frame):
     print(">exiting process")
-    for process in subprocesses:
-        process.kill()
     sys.exit(0)
+
+#own isdigit function because std function can not handle negative numbers
+def is_digit(n):
+    try:
+        int(n)
+        return True
+    except ValueError:
+        return  False
 
 #only works for single sink setup as of now
 def reboot_sink():
@@ -91,15 +97,13 @@ def get_untagged_input():
     for reader in streamreaders:
         line = reader.getline()
         if line:
-            if line.startswith('NODE$'):
-                sys.stdout.write(line)
-                handle_line(line.split('$')[1])
+            handle_line(line)
 
 #sends a string to all registered subprocesses
-def write_to_subprocesses(str):
+def write_to_subprocesses(msg):
     for process in subprocesses:
-        #print("writing: "+str)
-        process.stdin.write(str)
+        #sys.stdout.write("writing: "+msg)
+        process.stdin.write(msg)
 
 #prints round/saves measurement/verifies round depending on input line
 def handle_line(line):
@@ -107,12 +111,14 @@ def handle_line(line):
     global round_failed
     global current_round
     global recently_reset
-    global broken_lines_counter
     global last_round
     global same_round_counter
     global filename
     global booted
     global complete
+    global timer
+
+    #sys.stdout.write("handling:"+line)
 
     if line == "":
         return
@@ -120,15 +126,16 @@ def handle_line(line):
     if line == 'Booted\n':
         booted = True
 
-    elif line.startswith('Temp@') and len(line) < 10: #additional check is to make script more robust in case lines are broken
-        broken_lines_counter = 0
+    elif line.startswith('Temp@') and len(line) < 20: #additional check is to make script more robust in case lines are broken
         with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
             f.write(line)
 
     elif line.startswith('Round=') and len(line) < 11:
-        broken_lines_counter = 0;
-        #sys.stdout.write(line)
-        current_round = int(line.split('=')[1].rstrip())
+        try:
+            current_round = int(line.split('=')[1].rstrip())
+        except ValueError:
+            return
+
         if current_round == last_round:
             same_round_counter += 1
         else:
@@ -137,35 +144,38 @@ def handle_line(line):
 
     #bundle link data from a node
     elif ':' in line:
+        #broken line check
         if len(line.split(':')) is 6:
-            broken_lines_counter = 0
             now = time()
             measurement = {}
             node_id = line.split(':')[0]
 
+            # to check if all nodes have received inital message
             if (current_round == 0 or recently_reset) and int(node_id) in checklist:
                 checklist.remove(int(node_id))
 
-	        measurement["receiver"]= node_id
+            measurement["receiver"] = node_id
+            measurement["time"]    = now
+
+            #broken line check
+            for i in range(1,5):
+                if not is_digit(line.split(':')[i]):
+                    return
+
             measurement["channel"] = line.split(':')[1]
             measurement["txpower"] = line.split(':')[2]
             measurement["sender"]  = line.split(":")[3]
-            measurement["param"]   = line.split(":")[4]
-            measurement["value"]   = line.split(":")[5].rstrip()
-            measurement["time"]    = now
+            measurement["value"]   = line.split(":")[4]
+            measurement["param"]   = line.split(":")[5].rstrip()
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
             if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["sender"])):
                 with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
                     f.write(str(measurement)+'\n')
-        else:
-            sys.stdout.write(">line broken: "+line)
-            broken_lines_counter += 1
-
 
     elif line == 'round finished\n':
-        broken_lines_counter = 0
         round_failed = False
+        print("Round "+str(current_round)+" finished")
         #initial round or rounds after reset only complete if all nodes report back, so checklist has to be empty
         if (current_round == 0 or recently_reset) and not checklist:
             sys.stdout.write(">round ok. continuing\n")
@@ -180,18 +190,13 @@ def handle_line(line):
         round_failed = True
 
     elif line == 'reset\n':
-        broken_lines_counter = 0
         sys.stdout.write(">All nodes must report back again\n")
         checklist = range(1,number_of_nodes+1)
         recently_reset = True
 
     elif line == 'measurement complete\n':
-        broken_lines_counter = 0
         complete = True
 
-    else:
-        sys.stdout.write(">line broken: "+line)
-        broken_lines_counter +=1
 
 #throws the debugger board of the sensortags out of the devices list in case it is present
 def throw_out_debugger():
@@ -205,7 +210,10 @@ def throw_out_debugger():
 #goes through devices list andstarts a bash subprocess. then performs login
 def subprocess_init():
     for device in devices:
-        process = subprocess.Popen(['/bin/bash'], shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        process = subprocess.Popen(['/bin/bash'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+        #process = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True, preexec_fn=os.setsid)
+        #os.killpg(os.getpgid(pro.pid), signal.SIGTERM)  # Send the
+
         if device.startswith('ttyUSB'):
             sys.stdout.write('>make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
             process.stdin.write('make login TARGET={} MOTES=/dev/{}\n'.format(platform, device))
@@ -217,11 +225,13 @@ def subprocess_init():
         sr = NBSR(process.stdout)
         streamreaders.append(sr)
 
+
 make_directory()
 devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
 throw_out_debugger()
 subprocess_init()
 signal.signal(signal.SIGINT, signal_handler)
+timer = Timer(write_to_subprocesses)
 
 #loop through configs and start described experiments
 #sendMail("Expermient with {} started".format(platform))
@@ -241,19 +251,8 @@ for config in configurations:
 
     starttime = time()
     line = get_untagged_input()
+    timer.start(30)
     while not complete:
-        #if 4 lines in a row couldn't be read because they are broken
-        if broken_lines_counter > 6:
-            broken_lines_counter = 0
-            print(">broken lines reset.")
-            print(">last config was:"+config)
-            booted = False
-            reboot_sink()
-            # adjust rounds of current config
-            config.rstrip('200')
-            config = config + str(200 - current_round)
-            write_to_subprocesses(config+"\n")
-
         #if the same round is being send more than 12 times either channel or tx power isn't working, so skip measurement next time sink is waiting for validation
         if same_round_counter > 12:
 	    same_round_counter = 0
@@ -262,10 +261,15 @@ for config in configurations:
             reboot_sink()
             break
 
+        if timer.is_expired():
+            timer.reset()
+
         line = get_untagged_input()
 
+    timer.close()
+
     elapsed_time = time() -starttime
-    print(">"+strftime("%H:%M:%S",gmtime(elapsed_time)))
+    print(">Measurement finished "+strftime("%H:%M:%S",gmtime(elapsed_time)))
     with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
         f.write(strftime("%H:%M:%S",gmtime(elapsed_time))+'\n')
 

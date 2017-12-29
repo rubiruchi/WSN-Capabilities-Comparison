@@ -107,11 +107,11 @@ static void print_link_data(msg_t* msg){
     }
 
     if(msg->link_param == 0){
-      printf("RSSI:%i\n",msg->link_data[i] );
+      printf("%i:RSSI\n",msg->link_data[i] );
     }else if(msg->link_param == 1){
-      printf("LQI:%i\n",msg->link_data[i] );
+      printf("%i:LQI\n",msg->link_data[i] );
     } else if(msg->link_param == 2){
-      printf("Dropped:%i\n",msg->link_data[i] );
+      printf("%i:Dropped\n",msg->link_data[i] );
     }
   }
 }
