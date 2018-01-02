@@ -73,7 +73,8 @@ static void read_temperature(){
   #endif
 
   #ifdef hdc
-  printf("NODE$Temp@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP) / 100);
+  printf("NODE$Temp@%d | Hum@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP) / 100,
+  hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_HUMIDITY) / 100);
   #endif
 }
 /*---------------------------------------------------------------------------*/
