@@ -252,7 +252,7 @@ for config in configurations:
 
         if timer.is_expired():
             print(strftime("%H:%M:%S",gmtime(time())) + ">timer expired")
-            timer.reset()
+            timer.reset("resend")
 
         line = get_untagged_input()
 
