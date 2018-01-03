@@ -1,29 +1,27 @@
 from threading import Thread
 from time import sleep
 
-class Timer:
+class cTimer:
 
     def __init__(self, function):
-        self.sec = 1
+        self.seconds = 1
         self.last_sec = 1
         self.func = function
         self.stopped = True
         self.expired = False
 
-    def _run(self, seconds, function, stopped, expired):
+    def _run(self, function, args):
         expired = False
-        while seconds:
-            if(expired):
+        while self.seconds:
+            if(self.expired):
                 return
 
-            if(not stopped):
+            if(not self.stopped):
                 sleep(1)
-                seconds -= 1
-            else:
-                sleep(1)
+                self.seconds -= 1
 
-        expired = True
-        function("resend\n")
+        self.expired = True
+        function(*args)
 
     def is_expired(self):
         return self.expired
@@ -38,22 +36,22 @@ class Timer:
     def cont(self):
         self.stopped = False
 
-    def start(self, seconds):
-        self.sec = seconds
+    def start(self, seconds, *arguments):
+        self.seconds = seconds
         self.last_sec = seconds
         self.stopped = False
         self.expired = False
         self._t = Thread(target = self._run,
-                args = (self.sec, self.func, self.stopped, self.expired))
+                args = (self.func, arguments))
         self._t.daemon = True
         self._t.start()
 
-    def reset(self):
+    def reset(self, *args):
         if self.expired:
-            start(self.last_sec)
+            self.start(self.last_sec, *args)
 
         if self.stopped:
-            self.sec = self.last_sec
+            self.seconds = self.last_sec
             self.stopped = False
 
     def close(self):

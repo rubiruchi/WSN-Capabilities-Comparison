@@ -1,4 +1,5 @@
 #include "node.h"
+#include "dev/button-sensor.h"
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
 static struct etimer emergency_timer;
@@ -87,6 +88,8 @@ static void abc_recv(){
       leds_on(LEDS_GREEN);
 
       while(1){
+        SENSORS_ACTIVATE(button_sensor);
+
         PROCESS_WAIT_EVENT();
 
         if(etimer_expired(&lost_link_timer) && timer_was_set){
@@ -104,6 +107,11 @@ static void abc_recv(){
             set_channel(DEFAULT_CHANNEL);
             set_txpower(DEFAULT_TX_POWER);
           }
+        }
+
+        if(ev == sensors_event && data == &button_sensor){
+          printf("Channel: %d\n",get_channel());
+          printf("TXpow: %d\n",get_txpower());
         }
 
       }
