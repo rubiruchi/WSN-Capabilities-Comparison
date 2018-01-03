@@ -102,7 +102,7 @@ static void abc_recv(){
         if(etimer_expired(&emergency_timer)){
           leds_blink();
           printf("emergency timer expired\n");
-          if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
+          if(get_channel() != DEFAULT_CHANNEL || get_txpower() != DEFAULT_TX_POWER){
             printf("emergency reset\n");
             set_channel(DEFAULT_CHANNEL);
             set_txpower(DEFAULT_TX_POWER);

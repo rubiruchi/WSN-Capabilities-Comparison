@@ -81,18 +81,6 @@ def is_digit(n):
     except ValueError:
         return  False
 
-#only works for single sink setup as of now
-def reboot_sink():
-    print(strftime("%H:%M:%S",gmtime(time())) + ">rebooting sink")
-    # trigger watchdog reset in sink node(s)
-    write_to_subprocesses("reboot\n")
-    line = get_untagged_input()
-    reboottime = time()
-    while not booted or time()-reboottime < 20 :
-	    line = get_untagged_input()
-
-    print(strftime("%H:%M:%S",gmtime(time())) + ">Sink rebooted")
-
 #checks if the input is script relevant by splitting at '$' and returning the split part
 def get_untagged_input():
     for reader in streamreaders:
@@ -257,11 +245,9 @@ for config in configurations:
     timer.start(360,"resend")
     while not complete:
         #if the same round is being send more than 12 times either channel or tx power isn't working, so skip measurement next time sink is waiting for validation
-        if same_round_counter > 20:
-	    same_round_counter = 0
-            print(strftime("%H:%M:%S",gmtime(time())) + ">Skipping this config")
+        if booted:
             booted = False
-            reboot_sink()
+            print(strftime("%H:%M:%S",gmtime(time())) + ">Sink rebooted")
             break
 
         if timer.is_expired():
