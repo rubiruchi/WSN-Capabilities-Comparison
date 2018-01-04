@@ -161,7 +161,7 @@ def handle_line(line):
 
     elif line == 'round finished\n':
         round_failed = False
-        print(strftime("%H:%M:%S",gmtime(time())) + ">Round "+str(current_round)+" finished")
+        #print(strftime("%H:%M:%S",gmtime(time())) + ">Round "+str(current_round)+" finished")
         #initial round or rounds after reset only complete if all nodes report back, so checklist has to be empty
         if (current_round == 0 or recently_reset) and not checklist:
             #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +">round ok. continuing\n")
@@ -174,7 +174,7 @@ def handle_line(line):
 
     elif line == 'round failed\n':
         #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
-        print("round ",current_round," failed")
+        print("round "+str(current_round)+" failed")
         round_failed = True
 
     elif line == 'reset\n':
