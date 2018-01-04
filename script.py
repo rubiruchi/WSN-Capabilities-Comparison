@@ -7,7 +7,6 @@ import smtplib
 from time import gmtime,strftime,time,sleep
 from email.mime.text import MIMEText
 from nbstreamreader import NonBlockingStreamReader as NBSR
-from ctimer import cTimer
 
 if len(sys.argv) < 2:
     sys.exit("please define TARGET.\n eg.: python script.py sky\n")
@@ -24,7 +23,7 @@ number_of_nodes = 0
 current_round = 0
 round_failed = False
 recently_reset = True
-booted = True
+rebooted = False
 complete = False
 checklist = range(1,number_of_nodes+1)
 same_round_counter = 0
@@ -91,7 +90,7 @@ def get_untagged_input():
 #sends a string to all registered subprocesses
 def write_to_subprocesses(msg):
     for process in subprocesses:
-        sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +"writing: "+msg)
+        #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +"writing: "+msg)
         process.stdin.write(msg)
 
 #prints round/saves measurement/verifies round depending on input line
@@ -103,18 +102,15 @@ def handle_line(line):
     global last_round
     global same_round_counter
     global filename
-    global booted
+    global rebooted
     global complete
-    global timer
-
-    #sys.stdout.write("handling:"+line)
 
     if line == "":
         return
 
     if line == 'Booted\n':
-        sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
-        booted = True
+        #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
+        rebooted = True
 
     elif line.startswith('Temp@') and len(line) < 20: #additional check is to make script more robust in case lines are broken
         with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
@@ -165,29 +161,29 @@ def handle_line(line):
 
     elif line == 'round finished\n':
         round_failed = False
-        #print(strftime("%H:%M:%S",gmtime(time())) + ">Round "+str(current_round)+" finished")
+        print(strftime("%H:%M:%S",gmtime(time())) + ">Round "+str(current_round)+" finished")
         #initial round or rounds after reset only complete if all nodes report back, so checklist has to be empty
         if (current_round == 0 or recently_reset) and not checklist:
-            sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +">round ok. continuing\n")
+            #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +">round ok. continuing\n")
             write_to_subprocesses('continue\n')
             recently_reset = False
         elif (current_round == 0 or recently_reset) and checklist:
             checklist = range(1,number_of_nodes+1)
-            sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +">resend round\n")
+            #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +">resend round\n")
             write_to_subprocesses('resend\n')
 
     elif line == 'round failed\n':
-        sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
+        #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
+        print("round ",current_round," failed")
         round_failed = True
 
     elif line == 'reset\n':
         sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
-        print(strftime("%H:%M:%S",gmtime(time())) + ">reset. all nodes must report back again")
+        #print(strftime("%H:%M:%S",gmtime(time())) + ">reset. all nodes must report back again")
         checklist = range(1,number_of_nodes+1)
         recently_reset = True
 
     elif line == 'measurement complete\n':
-        sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
         #print(strftime("%H:%M:%S",gmtime(time())) + ">measurement complete")
         complete = True
 
@@ -222,7 +218,6 @@ devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.
 throw_out_debugger()
 subprocess_init()
 signal.signal(signal.SIGINT, signal_handler)
-timer = cTimer(write_to_subprocesses)
 
 #loop through configs and start described experiments
 sendMail("Expermient with {} started".format(platform))
@@ -242,21 +237,15 @@ for config in configurations:
 
     starttime = time()
     line = get_untagged_input()
-    timer.start(360,"resend")
     while not complete:
-        #if the same round is being send more than 12 times either channel or tx power isn't working, so skip measurement next time sink is waiting for validation
-        if booted:
-            booted = False
+        #if the sink reboots either channel or tx power isn't working, so skip measurement
+        if rebooted:
+            rebooted = False
             print(strftime("%H:%M:%S",gmtime(time())) + ">Sink rebooted")
+            sleep(0.2)
             break
 
-        if timer.is_expired():
-            print(strftime("%H:%M:%S",gmtime(time())) + ">timer expired")
-            timer.reset("resend")
-
         line = get_untagged_input()
-
-    timer.close()
 
     elapsed_time = time() -starttime
     print(strftime("%H:%M:%S",gmtime(time())) + ">Measurement finished "+strftime("%H:%M:%S",gmtime(elapsed_time)))
@@ -265,5 +254,5 @@ for config in configurations:
 
 elapsed_time = time() -experimentstart
 sendMail(">Experiment with {} took: ".format(platform) + strftime("%H:%M:%S",gmtime(elapsed_time)))
-sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) +">Finished\n")
+print(strftime("%H:%M:%S",gmtime(time())) +">Finished")
 print(strftime("%H:%M:%S",gmtime(time())) + ">Experiment took: "+strftime("%H:%M:%S",gmtime(elapsed_time)))

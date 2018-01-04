@@ -3,7 +3,8 @@
 /*---------------------------------------------------------------------------*/
 static struct etimer lost_link_timer;
 static struct etimer emergency_timer;
-static char timer_was_set;
+static struct etimer reboot_timer;
+static char ro_timer_set, em_timer_set, re_timer_set;
 static int last_node_id;
 /*---------------------------------------------------------------------------*/
 PROCESS(node_process, "node process");
@@ -11,6 +12,11 @@ AUTOSTART_PROCESSES(&node_process);
 /*---------------------------------------------------------------------------*/
 static void abc_recv(){
   msg_t received_msg = *(msg_t*) packetbuf_dataptr();
+
+  etimer_stop(&reboot_timer);
+  re_timer_set = 0;
+  etimer_stop(&emergency_timer);
+  em_timer_set = 0;
 
   /* don't handle message if node isn't needed for measuerement */
   if(node_id > received_msg.last_node){
@@ -46,7 +52,7 @@ static void abc_recv(){
       /* upwards sending*/
       if(received_msg.node_id == node_id -1){
         etimer_stop(&lost_link_timer);
-        timer_was_set = 0;
+        ro_timer_set = 0;
         sendmsg();
         prep_next_round();
       }
@@ -54,12 +60,13 @@ static void abc_recv(){
       /* lost link detection upwards sending*/
       if(received_msg.node_id < node_id-1){
         int wait_time = (node_id - received_msg.node_id);
-        etimer_set(&lost_link_timer, (CLOCK_SECOND/20) * wait_time); //TODO test if sufficient time
+        etimer_set(&lost_link_timer, (CLOCK_SECOND/30) * wait_time);
         lost_link_timer.p = &node_process;
-        timer_was_set = 1;
+        ro_timer_set = 1;
       }
 
-      etimer_set(&emergency_timer,(CLOCK_SECOND/20)*last_node_id*4);
+      etimer_set(&emergency_timer, (CLOCK_SECOND/30)*last_node_id*4); //times 4 because sink will resend a round 4 times before resetting channel
+      em_timer_set = 1;
       emergency_timer.p = &node_process;
 
     }
@@ -70,7 +77,10 @@ static void abc_recv(){
 
       PROCESS_EXITHANDLER(abc_close(&abc));
 
-      timer_was_set = 0;
+      ro_timer_set = 0;
+      re_timer_set = 0;
+      em_timer_set = 0;
+
       current_channel = DEFAULT_CHANNEL;
       current_txpower = DEFAULT_TX_POWER;
 
@@ -92,15 +102,21 @@ static void abc_recv(){
 
         PROCESS_WAIT_EVENT();
 
-        if(etimer_expired(&lost_link_timer) && timer_was_set){
-          timer_was_set = 0;
+        if(etimer_expired(&lost_link_timer) && ro_timer_set){
+          ro_timer_set = 0;
           printf("lost link detected. will continue sending\n");
           sendmsg();
           prep_next_round();
         }
 
-        if(etimer_expired(&emergency_timer)){
+        if(etimer_expired(&reboot_timer) && re_timer_set){
+          watchdog_reboot();
+        }
+
+        if(etimer_expired(&emergency_timer) && em_timer_set){
           leds_blink();
+          etimer_set(&reboot_timer,CLOCK_SECOND*10);
+          re_timer_set = 1;
           printf("emergency timer expired\n");
           if(get_channel() != DEFAULT_CHANNEL || get_txpower() != DEFAULT_TX_POWER){
             printf("emergency reset\n");

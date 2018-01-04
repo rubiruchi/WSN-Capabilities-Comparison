@@ -16,6 +16,8 @@ class NonBlockingStreamReader:
                     line = line.split('$')[1]
                     #print("read:"+ line.rstrip())
                     queue.put(line)
+                #else:
+                    #print("nbsr discarded: "+line.rstrip())
 
         self._t = Thread(target = _populateQueue,
                 args = (self._s, self._q))

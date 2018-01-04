@@ -2,11 +2,9 @@
 #define NODE_HEADER
 
 #include "contiki.h"
-
+#include "dev/watchdog.h"
 #include "net/netstack.h"
-
 #include "net/packetbuf.h"
-
 #include "dev/radio.h"
 
 #if defined(sky) || defined(z1) || defined(sensortag)

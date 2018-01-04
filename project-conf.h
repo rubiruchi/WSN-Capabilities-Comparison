@@ -7,7 +7,7 @@
 
 #define DEFAULT_CHANNEL 26
 #define DEFAULT_TX_POWER 31
-#define MAX_NODES 30
+#define MAX_NODES 9
 
 #ifdef sensortag
 #define ROM_BOOTLOADER_ENABLE                 1
@@ -43,22 +43,14 @@
 //#define UIP_MCAST6_ROUTE_CONF_ROUTES        1
 
 #undef NETSTACK_CONF_RDC
-#define NETSTACK_CONF_RDC                   nullrdc_driver
+#define NETSTACK_CONF_RDC                   nullrdc_driver//contikimac_driver
 #undef NETSTACK_CONF_MAC
 #define NETSTACK_CONF_MAC                   nullmac_driver
 
 #undef NETSTACK_RDC_CHANNEL_CHECKRATE
-#define NETSTACK_RDC_CHANNEL_CHECKRATE      32
+#define NETSTACK_RDC_CHANNEL_CHECKRATE      8
 #undef RF_CHANNEL
 #define RF_CHANNEL                          DEFAULT_CHANNEL
-
-// #undef CC2420_CONF_CHANNEL
-// #define CC2420_CONF_CHANNEL                 DEFAULT_CHANNEL
-
-// #if RADIO==openmote
-// #undef CC2538_RF_CONF_CHANNEL
-// #define CC2538_RF_CONF_CHANNEL                 DEFAULT_CHANNEL
-// #endif
 
 
 #endif /* PROJECT_CONF_H_ */
