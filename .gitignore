@@ -17,3 +17,5 @@ program_script.py
 *.hex
 *.bin
 *.openmote-cc2538
+nbstreamreader.pyc
+timer.pyc
