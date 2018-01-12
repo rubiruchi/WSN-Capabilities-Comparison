@@ -173,9 +173,17 @@ for platform in platforms:
         for chan in channels:
             for txpow in get_txpowers(platform):
                 for orientation in get_orientations(platform):
+
+                    path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_chan(),readable_txpow()))
+                    if not os.path.exists(path):
+                        os.makedirs(path)
+                    filename = platform+","+readable_chan()+","+readable_txpow()+","+readable_param()+"->"+orientation
+                    if os.path.isfile(os.path.join(path,filename+".png")):
+                        continue
+
                     try:
                         analyze(platform,param, orientation, chan,txpow)
-                    except OSError:
+                    except (OSError,IndexError):
                         continue
 
                     if param != "time":
@@ -191,10 +199,6 @@ for platform in platforms:
                             plot.ylim(-100,0)
                             plot.xlabel("Links")
                             plot.title("Average {}\nchannel:{} , txpower:{}".format(readable_param(),readable_chan(),readable_txpow()))
-                            path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_chan(),readable_txpow()))
-                            if not os.path.exists(path):
-                                os.makedirs(path)
-                            filename = platform+","+readable_chan()+","+readable_txpow()+","+readable_param()+"->"+orientation
                             plot.savefig(os.path.join(path,filename))
                             plot.close()
 
