@@ -2,9 +2,11 @@
 #define NODE_HEADER
 
 #include "contiki.h"
-#include "dev/watchdog.h"
+
 #include "net/netstack.h"
+
 #include "net/packetbuf.h"
+
 #include "dev/radio.h"
 
 #if defined(sky) || defined(z1) || defined(sensortag)
@@ -92,7 +94,17 @@ static void set_txpower(int power){
 
   NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, power);
 }
-
+static void print_link_data_only_sink(msg_t* msg){
+  printf("NODE$%i:%i:%i:",msg->node_id,get_channel(), get_txpower());
+  printf("1:");
+  if(msg->link_param == 0){
+    printf("%i:RSSI\n",msg->link_data[0] );
+  }else if(msg->link_param == 1){
+    printf("%i:LQI\n",msg->link_data[0] );
+  } else if(msg->link_param == 2){
+    printf("%i:Dropped\n",msg->link_data[0] );
+  }
+}
 /* print link data of a message */
 static void print_link_data(msg_t* msg){
   int i;
