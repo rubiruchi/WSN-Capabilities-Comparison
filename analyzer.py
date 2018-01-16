@@ -26,6 +26,9 @@ from collections import OrderedDict
 DIRECTORY_PATH = ""
 link_data = {}
 times = []
+rssi = []
+lqi = []
+dropped = []
 
 def readable_chan():
     r_chan = chan
@@ -46,18 +49,30 @@ def readable_param():
 
 def readable_txpow():
     r_txpow = txpow
-    if not txpow:
+
+    cc2420_to_dbm = {
+    "31":"0",
+    "27":"-1",
+    "23":"-3",
+    "19":"-5",
+    "15":"-7",
+    "7":"-15"
+    }
+
+    if not r_txpow:
         r_txpow = "all"
+
+    if not r_txpow == "all" and int(r_txpow) > 5:
+        r_txpow = cc2420_to_dbm[r_txpow]
 
     return r_txpow
 
 
-def make_directory():
+def make_directory(platform):
     global DIRECTORY_PATH
-    global configurations
 
-    #if stick not present use pardir
     DIRECTORY_PATH = '/media/pi/Experiments'
+    #if stick not present use pardir
     if not os.path.exists(DIRECTORY_PATH):
         DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
         if not os.path.exists(DIRECTORY_PATH):
@@ -67,6 +82,35 @@ def make_directory():
         DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'Measurements/{}'.format(platform))
         if not os.path.exists(DIRECTORY_PATH):
             sys.exit("Error: Measurement directory not found.")
+
+def get_min_max(platform, orientation):
+    global DIRECTORY_PATH
+    global rssi
+    global lqi
+    global dropped
+
+    relevant_files = []
+
+    make_directory(platform)
+    #see if folder with specific orientation is present
+    experiment_folder = filter(lambda x: x.endswith('-'+orientation), os.listdir(DIRECTORY_PATH))
+    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,experiment_folder[0])
+    if not os.path.exists(DIRECTORY_PATH):
+        raise OSError("File not found")
+
+    print(DIRECTORY_PATH)
+
+    for filename in os.listdir(DIRECTORY_PATH):
+        with open(os.path.join(DIRECTORY_PATH,filename),'r') as experiment_file:
+            for line in experiment_file:
+                if line.startswith("{"):
+                    measurement = eval(line)
+                    if measurement["param"] == "RSSI":
+                        rssi.append(int(measurement["value"]))
+                    elif measurement["param"] =="LQI":
+                        lqi.append(int(measurement["value"]))
+                    elif measurement["param"] =="Dropped":
+                        dropped.append(int(measurement["value"]))
 
 
 def analyze(platform, param, orientation, chan =None, txpow =None):
@@ -78,7 +122,7 @@ def analyze(platform, param, orientation, chan =None, txpow =None):
 
     print("platform:",platform," param:", param," orient:", orientation," chan:", chan,"tx ", txpow)
 
-    make_directory()
+    make_directory(platform)
     #see if folder with specific orientation is present
     experiment_folder = filter(lambda x: x.endswith('-'+orientation), os.listdir(DIRECTORY_PATH))
     #if not experiment_folder or len(experiment_folder) > 1:
@@ -150,59 +194,68 @@ def get_txpowers(platform):
 
     return txpowers
 
-def get_orientations(platform):
-    orientations = []
-
-    if platform == "openmote-cc2538":
-        orientations = map(str,range(2,6))
-    else:
-        orientations = map(str,range(2,10))
-
-    return orientations
-
 
 platforms = ["openmote-cc2538","sky","z1","srf06-cc26xx"]
 parameters = map(str,range(3))
 channels = map(str,range(11,27))
 channels.append(None)
+orientations= map(str,range(2,6))
 
-orientations= []
+if len(sys.argv) > 1 and sys.argv[1] == a:
+    for platform in platforms:
+        for param in parameters:
+            for chan in channels:
+                for txpow in get_txpowers(platform):
+                    for orientation in orientations:
 
-for platform in platforms:
-    for param in parameters:
-        for chan in channels:
-            for txpow in get_txpowers(platform):
-                for orientation in get_orientations(platform):
+                        path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_chan(),readable_txpow()))
+                        if not os.path.exists(path):
+                            os.makedirs(path)
+                        filename = platform+","+readable_chan()+","+readable_txpow()+","+readable_param()+"->"+orientation
+                        if os.path.isfile(os.path.join(path,filename+".png")):
+                            continue
 
-                    path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_chan(),readable_txpow()))
-                    if not os.path.exists(path):
-                        os.makedirs(path)
-                    filename = platform+","+readable_chan()+","+readable_txpow()+","+readable_param()+"->"+orientation
-                    if os.path.isfile(os.path.join(path,filename+".png")):
-                        continue
+                        try:
+                            analyze(platform,param, orientation, chan,txpow)
+                        except (OSError,IndexError):
+                            continue
 
-                    try:
-                        analyze(platform,param, orientation, chan,txpow)
-                    except (OSError,IndexError):
-                        continue
+                        if param != "time":
+                            od = OrderedDict(sorted(link_data.items()))
+                            data = od.values()
+                            labels = od.keys()
 
-                    if param != "time":
-                        od = OrderedDict(sorted(link_data.items()))
-                        data = od.values()
-                        labels = od.keys()
+                            # for link in link_data:
+                            #     print(link,":",sum(link_data[link]) / float(len(link_data[link])))
+                            if data:
+                                plot.boxplot(data,vert=True,labels=labels)
+                                plot.ylabel(param)
+                                if param == "0":
+                                    plot.ylim(-100,0)
+                                elif param == "1":
+                                    plot.ylim(0,255)
+                                elif param == "2":
+                                    plot.ylim(0,255)
+                                plot.xlabel("Links")
+                                plot.title("Average {}\nchannel:{} , txpower:{}".format(readable_param(),readable_chan(),readable_txpow()))
+                                plot.savefig(os.path.join(path,filename))
+                                plot.close()
 
-                        # for link in link_data:
-                        #     print(link,":",sum(link_data[link]) / float(len(link_data[link])))
-                        if data:
-                            plot.boxplot(data,vert=True,labels=labels)
-                            plot.ylabel(param)
-                            plot.ylim(-100,0)
-                            plot.xlabel("Links")
-                            plot.title("Average {}\nchannel:{} , txpower:{}".format(readable_param(),readable_chan(),readable_txpow()))
-                            plot.savefig(os.path.join(path,filename))
-                            plot.close()
+                        else:
+                            print("Avg Time:",sum(times) / float(len(times)))
+else:
+    for platform in platforms:
+        for orientation in orientations:
+            try:
+                get_min_max(platform,orientation)
+            except IndexError:
+                continue
 
-                    else:
-                        print("Avg Time:",sum(times) / float(len(times)))
+    print("Min rssi:", min(rssi))
+    print("Max rssi:", max(rssi))
+    print("Min lqi:", min(lqi))
+    print("Max lqi:", max(lqi))
+    print("Min dropped:", min(dropped))
+    print("Max dropped:", max(dropped))
 
 print("Finished")

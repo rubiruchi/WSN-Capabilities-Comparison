@@ -156,8 +156,10 @@ def handle_line(line):
 
             #only add if not init round and link data already available (in round 1 or after fail data from nodes higher up not yet available, so drop measurement)
             if ((current_round > 1) and not round_failed and not recently_reset) or (int(node_id) > int(measurement["sender"])):
-                with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
-                    f.write(str(measurement)+'\n')
+                #also only add if channels actually match
+                if config_channel == measurement["channel"]:
+                    with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
+                        f.write(str(measurement)+'\n')
 
     elif line == 'round finished\n':
         round_failed = False
@@ -174,7 +176,7 @@ def handle_line(line):
 
     elif line == 'round failed\n':
         #sys.stdout.write(strftime("%H:%M:%S",gmtime(time())) + line)
-        print("round "+str(current_round)+" failed")
+        print(strftime("%H:%M:%S",gmtime(time()))+"round "+str(current_round)+" failed")
         round_failed = True
 
     elif line == 'reset\n':
@@ -224,6 +226,7 @@ sendMail("Expermient with {} started".format(platform))
 experimentstart = time()
 for config in configurations:
     number_of_nodes = int(config[0])
+    config_channel = config.split(',')[1]
     current_round = 0
     round_failed = False
     same_round_counter = 0
