@@ -160,10 +160,18 @@ def analyze(platform, param, orientation, chan =None, txpow =None):
                     """evaluate measurement and add measured value to list"""
                     if line.startswith("{"):
                         measurement = eval(line)
-                        if int(measurement["sender"]) == 1:
-                            link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
-                        elif int(measurement["receiver"]) == 1:
-                            link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
+                        if param != "2" or (param == "2" and int(measurement["value"]) > 0):
+                            if int(measurement["sender"]) == 1:
+                                link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
+                            elif int(measurement["receiver"]) == 1:
+                                link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
+                                
+                        #conversion signed to unsigned
+                        else:
+                            if int(measurement["sender"]) == 1 and int(measurement["value"]) < 0:
+                                link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"])+256)
+                            elif int(measurement["receiver"]) == 1 and int(measurement["value"]) < 0:
+                                link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"])+256)
 
                 elif not line.startswith("Temp") and not line.startswith("{"):
                     """parse time in seconds"""
