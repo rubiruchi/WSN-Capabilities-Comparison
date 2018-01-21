@@ -4,40 +4,14 @@ import matplotlib.pyplot as plot
 import numpy as np
 from collections import OrderedDict
 
-# if len(sys.argv) < 4:
-#     sys.exit("please define TARGET, value parameter, and orientation.\n eg.: python analyzer.py sky 0 2 (opt. channel) (opt. txpower)\n")
-#
-# platform = sys.argv[1]
-# param = sys.argv[2]
-# orientation  = sys.argv[3]
-#
-# try:
-#     chan = sys.argv[4]
-#     if int(chan) < 11 or int(chan) > 26:
-#         chan = None
-# except IndexError:
-#     chan = None
-#
-# try:
-#     txpow = sys.argv[5]
-# except IndexError:
-#     txpow = None
-
-DIRECTORY_PATH = ""
-link_data = {}
-times = []
-rssi = []
-lqi = []
-dropped = []
-
-def readable_chan():
-    r_chan = chan
-    if not chan:
+def readable_channel(channel):
+    r_chan = channel
+    if not r_chan:
         r_chan = "all"
 
     return r_chan
 
-def readable_param():
+def readable_param(param):
     if param == "0":
         r_param = "RSSI"
     if param == "1":
@@ -47,8 +21,8 @@ def readable_param():
 
     return r_param
 
-def readable_txpow():
-    r_txpow = txpow
+def readable_txpower(txpower):
+    r_txpow = txpower
 
     cc2420_to_dbm = {
     "31":"0",
@@ -67,203 +41,234 @@ def readable_txpow():
 
     return r_txpow
 
-
-def make_directory(platform):
-    global DIRECTORY_PATH
-
-    DIRECTORY_PATH = '/media/pi/Experiments'
+def get_measurement_directory_path():
+    directory_path = '/media/pi/Experiments'
     #if stick not present use pardir
-    if not os.path.exists(DIRECTORY_PATH):
-        DIRECTORY_PATH = os.path.join(os.pardir,'Measurements/{}'.format(platform))
-        if not os.path.exists(DIRECTORY_PATH):
+    if not os.path.exists(directory_path):
+        directory_path = os.path.join(os.pardir,'Measurements')
+        if not os.path.exists(directory_path):
             sys.exit("Error: Measurement directory not found.")
     #if stick is present:use stick.
     else:
-        DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,'Measurements/{}'.format(platform))
-        if not os.path.exists(DIRECTORY_PATH):
+        directory_path = os.path.join(directory_path,'Measurements')
+        if not os.path.exists(directory_path):
             sys.exit("Error: Measurement directory not found.")
 
-def get_min_max(platform, orientation):
-    global DIRECTORY_PATH
-    global rssi
-    global lqi
-    global dropped
+    return directory_path
 
-    relevant_files = []
+def print_ranges():
+    rssi_min = 0
+    rssi_max = -100
+    lqi_min = 255
+    lqi_max = 0
+    dropped_min = 255
+    dropped_max = 0
+    relevant_files = get_all_files()
 
-    make_directory(platform)
-    #see if folder with specific orientation is present
-    experiment_folder = filter(lambda x: x.endswith('-'+orientation), os.listdir(DIRECTORY_PATH))
-    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,experiment_folder[0])
-    if not os.path.exists(DIRECTORY_PATH):
-        raise OSError("File not found")
-
-    print(DIRECTORY_PATH)
-
-    for filename in os.listdir(DIRECTORY_PATH):
-        with open(os.path.join(DIRECTORY_PATH,filename),'r') as experiment_file:
+    for filepath in relevant_files:
+        with open(filepath,'r') as experiment_file:
             for line in experiment_file:
                 if line.startswith("{"):
                     measurement = eval(line)
                     if measurement["param"] == "RSSI":
-                        rssi.append(int(measurement["value"]))
+                        rssi_read = int(measurement["value"])
+                        if rssi_read > rssi_max and rssi_read != 0:
+                            rssi_max = rssi_read
+                        if rssi_read < rssi_min:
+                            rssi_min = rssi_read
+
                     elif measurement["param"] =="LQI":
-                        lqi.append(int(measurement["value"]))
+                        lqi_read = int(measurement["value"])
+                        if lqi_read > lqi_max:
+                            lqi_max = lqi_read
+                        if lqi_read < lqi_min and lqi_read != 0:
+                            lqi_min = lqi_read
+
                     elif measurement["param"] =="Dropped":
-                        dropped.append(int(measurement["value"]))
+                        dropped_read = int(measurement["value"])
+                        if dropped_read < 0:
+                            dropped_read += 256
+                        if dropped_read > dropped_max:
+                            dropped_max = dropped_read
+                        if dropped_read < dropped_min:
+                            dropped_min = dropped_read
 
+    print("Min rssi:{}".format(rssi_min))
+    print("Max rssi:{}".format(rssi_max))
+    print("Min lqi:{}".format(lqi_min))
+    print("Max lqi:{}".format(lqi_max))
+    print("Min dropped:{}".format(dropped_min))
+    print("Max dropped:{}".format(dropped_max))
 
-def analyze(platform, param, orientation, chan =None, txpow =None):
-    global link_data
-    global DIRECTORY_PATH
-    global times
+def get_information_by_path(file_path):
+    information = {}
+    information["link_data"] = {}
 
+    split_file_path = file_path.split("/")
+    #to make pathing work no matter where the directory is mounted use length as offset
+    path_len = len(split_file_path)
+    split_file_name = split_file_path[path_len-1].split(",")
+
+    information["platform"] = split_file_path[path_len-3]
+    information["orientation"] = split_file_path[path_len-2][-1:]
+    information["number_of_nodes"] = split_file_name[0]
+    information["channel"] = split_file_name[1]
+    information["txpower"] = split_file_name[2]
+    information["param"] = split_file_name[3]
+
+    return information
+
+def get_all_files():
     relevant_files = []
+    d_path = get_measurement_directory_path()
 
-    print("platform:",platform," param:", param," orient:", orientation," chan:", chan,"tx ", txpow)
+    for root, dirs, files in os.walk(d_path, topdown=False):
+        for name in files:
+            if name.endswith("200"):
+                relevant_files.append(os.path.join(root, name))
 
-    make_directory(platform)
-    #see if folder with specific orientation is present
-    experiment_folder = filter(lambda x: x.endswith('-'+orientation), os.listdir(DIRECTORY_PATH))
-    #if not experiment_folder or len(experiment_folder) > 1:
-        #sys.exit("Error: Need exactly one folder ending with -"+orientation)
-    DIRECTORY_PATH = os.path.join(DIRECTORY_PATH,experiment_folder[0])
-    if not os.path.exists(DIRECTORY_PATH):
-        raise OSError("File not found")
+    return relevant_files
 
-    print(DIRECTORY_PATH)
+def get_files_by(filters):
+    relevant_files = []
+    d_path = get_measurement_directory_path()
 
-    """Gather files containing relevant information"""
-    for filename in os.listdir(DIRECTORY_PATH):
-        split_file = filename.split(',')
-        experiment_numofnodes = int(split_file[0])
-        experiment_chan  = split_file[1]
-        experiment_txpow = split_file[2]
-        experiment_param = split_file[3]
+    for root, dirs, files in os.walk(d_path, topdown=False):
+        for name in files:
+            if name.endswith("200"):
+                info = get_information_by_path(os.path.join(root,name))
 
-        if chan and chan != experiment_chan:
-            continue
-        if txpow and txpow != experiment_txpow:
-            continue
-        if param == "time" or param == experiment_param:
-            relevant_files.append(filename)
+                if filters["platform"] and filters["platform"] != info["platform"]:
+                    continue
+                if filters["orientation"] and filters["orientation"] != info["orientation"]:
+                    continue
+                if filters["channel"] and filters["channel"] != info["channel"]:
+                    continue
+                if filters["txpower"] and filters["txpower"] != info["txpower"]:
+                    continue
+                if filters["param"] == "time" or filters["param"] == info["param"]:
+                    relevant_files.append(os.path.join(root,name))
 
-    if param != "time":
-        """init dict (link : list)"""
-        for i in range(2,experiment_numofnodes+1):
-            link_data["1-"+str(i)] = []
+    return relevant_files
 
-    for experiment in relevant_files:
-        with open(os.path.join(DIRECTORY_PATH,experiment),'r') as experiment_file:
-            for line in experiment_file:
-                if param != "time":
-                    """evaluate measurement and add measured value to list"""
-                    if line.startswith("{"):
-                        measurement = eval(line)
-                        if param != "2" or (param == "2" and int(measurement["value"]) > 0):
-                            if int(measurement["sender"]) == 1:
-                                link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
-                            elif int(measurement["receiver"]) == 1:
-                                link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
-                                
-                        #conversion signed to unsigned
-                        else:
-                            if int(measurement["sender"]) == 1 and int(measurement["value"]) < 0:
-                                link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"])+256)
-                            elif int(measurement["receiver"]) == 1 and int(measurement["value"]) < 0:
-                                link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"])+256)
+def create_graph(information):
+    link_data         = information["link_data"]
+    channel           = information["channel"]
+    txpower           = information["txpower"]
+    orientation       = information["orientation"]
+    param             = information["param"]
+    measurement_count = information["measurement_count"]
+    temp              = information["temp"]
+    hum               = information["hum"]
+    time              = information["time"]
+    platform          = information["platform"]
 
-                elif not line.startswith("Temp") and not line.startswith("{"):
-                    """parse time in seconds"""
-                    hms = [3600,60,1]
-                    measurement_time = sum([a*b for a,b in zip(hms, map(int,line.split(':')))])
-                    times.append(measurement_time)
+    od = OrderedDict(sorted(link_data.items()))
+    data = od.values()
+    labels = od.keys()
 
-# """parse temperature"""
-# elif(line.startswith("Temp")):
-#     measurement_temp =
-#     measurement_hum  =
-#
+    if data:
+        path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_channel(channel),readable_txpower(txpower)))
+        if not os.path.exists(path):
+            os.makedirs(path)
+        filename = platform+","+readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(param)+"->"+orientation
+        if os.path.isfile(os.path.join(path,filename+".png")):
+            return
 
-def get_txpowers(platform):
-    opn_txpowers = map(str,[5,3,1,0,-1,-3,-5,-7,-15])
-    stg_txpowers = map(str,[5,3,1,0,-3,-15])
-    msp_txpowers = map(str,[31,27,23,19,15,7])
-    txpowers = []
+        plot.boxplot(data,vert=True,labels=labels)
+        plot.ylabel(param)
+        if param == "0":
+            plot.ylim(-100,0)
+        elif param == "1":
+            plot.ylim(0,255)
+        elif param == "2":
+            plot.ylim(0,255)
+        plot.xlabel("Links")
+        plot.title("Average {} channel:{} txpower:{}dBm\nMeasurements:{} Temperature:{}C Humidity:{}% Duration:{}s".format(readable_param(param),
+                                                                                                                                       readable_channel(channel),
+                                                                                                                                       readable_txpower(txpower),
+                                                                                                                                       measurement_count,
+                                                                                                                                       temp,
+                                                                                                                                       hum,
+                                                                                                                                       time))
 
-    if platform == "sky" or platform == "z1":
-        txpowers = msp_txpowers
-    elif platform == "openmote-cc2538":
-        txpowers = opn_txpowers
-    elif platform == "srf06-cc26xx":
-        txpowers = stg_txpowers
+        plot.savefig(os.path.join(path,filename))
+        plot.close()
 
-    txpowers.append(None)
+def parse_file(file_path):
+    information = get_information_by_path(file_path)
 
-    return txpowers
+    information["measurement_count"] = 0
+    information["temp"] = 0
+    information["hum"] = 0
+    information["time"] = 0
+
+    #init dict (link : list)
+    for i in range(2,int(information["number_of_nodes"])+1):
+        information["link_data"]["1-"+str(i)] = []
+
+    with open(file_path,'r') as experiment_file:
+        for line in experiment_file:
+            #evaluate measurement and add measured value to list
+            if line.startswith("{"):
+                information["measurement_count"] += 1
+                measurement = eval(line)
+                if information["param"] != "2" or (information["param"] == "2" and int(measurement["value"]) > 0):
+                    if int(measurement["sender"]) == 1:
+                        information["link_data"][measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
+                    elif int(measurement["receiver"]) == 1:
+                        information["link_data"][measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
+
+                #conversion signed to unsigned
+                else:
+                    if int(measurement["sender"]) == 1 and int(measurement["value"]) < 0:
+                        information["link_data"][measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"])+256)
+                    elif int(measurement["receiver"]) == 1 and int(measurement["value"]) < 0:
+                        information["link_data"][measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"])+256)
+
+            elif line.startswith("Temp"):
+                line.replace(" ", "")
+                split_line = line.split("|")
+                information["temp"] = split_line[0][-2:-1]
+                information["hum"]  = split_line[1][-2:-1]
+
+            else:
+                #parse time in seconds
+                hms = [3600,60,1]
+                information["time"] = sum([a*b for a,b in zip(hms, map(int,line.split(':')))])
+
+    if information["measurement_count"] >= 150:
+        return information
+    else:
+        return None
+
+if len(sys.argv) > 1 and sys.argv[1] == "all":
+    relevant_files = get_all_files()
+
+    for file_path in relevant_files:
+        print(file_path)
+        info = parse_file(file_path)
+        if info:
+            create_graph(info)
 
 
-platforms = ["openmote-cc2538","sky","z1","srf06-cc26xx"]
-parameters = map(str,range(3))
-channels = map(str,range(11,27))
-channels.append(None)
-orientations= map(str,range(2,6))
+elif len(sys.argv) > 2:
+    arguments = {}
+    #default args
+    arguments["param"] = "time"
+    arguments["platform"] = None
+    arguments["orientation"] = None
+    arguments["channel"] = None
+    arguments["txpower"] = None
 
-if len(sys.argv) > 1 and sys.argv[1] == a:
-    for platform in platforms:
-        for param in parameters:
-            for chan in channels:
-                for txpow in get_txpowers(platform):
-                    for orientation in orientations:
+    for arg in sys.argv:
+        if "=" in arg:
+            arguments[arg.split("=")[0]] = arg.split("=")[1]
 
-                        path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_chan(),readable_txpow()))
-                        if not os.path.exists(path):
-                            os.makedirs(path)
-                        filename = platform+","+readable_chan()+","+readable_txpow()+","+readable_param()+"->"+orientation
-                        if os.path.isfile(os.path.join(path,filename+".png")):
-                            continue
+    relevant_files = get_files_by(arguments)
+    #TODO
 
-                        try:
-                            analyze(platform,param, orientation, chan,txpow)
-                        except (OSError,IndexError):
-                            continue
-
-                        if param != "time":
-                            od = OrderedDict(sorted(link_data.items()))
-                            data = od.values()
-                            labels = od.keys()
-
-                            # for link in link_data:
-                            #     print(link,":",sum(link_data[link]) / float(len(link_data[link])))
-                            if data:
-                                plot.boxplot(data,vert=True,labels=labels)
-                                plot.ylabel(param)
-                                if param == "0":
-                                    plot.ylim(-100,0)
-                                elif param == "1":
-                                    plot.ylim(0,255)
-                                elif param == "2":
-                                    plot.ylim(0,255)
-                                plot.xlabel("Links")
-                                plot.title("Average {}\nchannel:{} , txpower:{}".format(readable_param(),readable_chan(),readable_txpow()))
-                                plot.savefig(os.path.join(path,filename))
-                                plot.close()
-
-                        else:
-                            print("Avg Time:",sum(times) / float(len(times)))
-else:
-    for platform in platforms:
-        for orientation in orientations:
-            try:
-                get_min_max(platform,orientation)
-            except IndexError:
-                continue
-
-    print("Min rssi:", min(rssi))
-    print("Max rssi:", max(rssi))
-    print("Min lqi:", min(lqi))
-    print("Max lqi:", max(lqi))
-    print("Min dropped:", min(dropped))
-    print("Max dropped:", max(dropped))
+elif len(sys.argv) > 1 and sys.argv[1] == "ranges":
+    print_ranges()
 
 print("Finished")
