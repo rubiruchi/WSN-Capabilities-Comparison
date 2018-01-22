@@ -4,6 +4,12 @@ import matplotlib.pyplot as plot
 import numpy as np
 from collections import OrderedDict
 
+def print_stats_table(stats):
+    print("\tRSSI\tLQI\tDRP\tTime")
+    print("min\t" + str(stats["rssi_min"]) + "\t" + str(stats["lqi_min"]) + "\t" + str(stats["dropped_min"]) + "\t" + str(stats["time_min"]))
+    print("max\t" + str(stats["rssi_max"]) + "\t" + str(stats["lqi_max"]) + "\t" + str(stats["dropped_max"]) + "\t" + str(stats["time_max"]))
+    print("avg\t" + str(stats["rssi_avg"]) + "\t" + str(stats["lqi_avg"]) + "\t" + str(stats["dropped_avg"]) + "\t" + str(stats["time_avg"]))
+
 def readable_channel(channel):
     r_chan = channel
     if not r_chan:
@@ -56,49 +62,52 @@ def get_measurement_directory_path():
 
     return directory_path
 
-def print_ranges():
-    rssi_min = 0
-    rssi_max = -100
-    lqi_min = 255
-    lqi_max = 0
-    dropped_min = 255
-    dropped_max = 0
-    relevant_files = get_all_files()
+def get_min_max_avg(relevant_files):
+    rssi_values = []
+    lqi_values = []
+    dropped_values = []
+    time_values = []
 
     for filepath in relevant_files:
         with open(filepath,'r') as experiment_file:
             for line in experiment_file:
                 if line.startswith("{"):
                     measurement = eval(line)
-                    if measurement["param"] == "RSSI":
-                        rssi_read = int(measurement["value"])
-                        if rssi_read > rssi_max and rssi_read != 0:
-                            rssi_max = rssi_read
-                        if rssi_read < rssi_min:
-                            rssi_min = rssi_read
+                    if measurement["param"] == "RSSI" and measurement["value"] != "0":
+                        rssi_values.append(int(measurement["value"]))
 
-                    elif measurement["param"] =="LQI":
-                        lqi_read = int(measurement["value"])
-                        if lqi_read > lqi_max:
-                            lqi_max = lqi_read
-                        if lqi_read < lqi_min and lqi_read != 0:
-                            lqi_min = lqi_read
+                    elif measurement["param"] =="LQI" and measurement["value"] != "0":
+                        lqi_values.append(int(measurement["value"]))
 
-                    elif measurement["param"] =="Dropped":
+                    elif measurement["param"] =="Dropped" and measurement["value"] != "0":
                         dropped_read = int(measurement["value"])
                         if dropped_read < 0:
                             dropped_read += 256
-                        if dropped_read > dropped_max:
-                            dropped_max = dropped_read
-                        if dropped_read < dropped_min:
-                            dropped_min = dropped_read
+                        dropped_values.append(dropped_read)
 
-    print("Min rssi:{}".format(rssi_min))
-    print("Max rssi:{}".format(rssi_max))
-    print("Min lqi:{}".format(lqi_min))
-    print("Max lqi:{}".format(lqi_max))
-    print("Min dropped:{}".format(dropped_min))
-    print("Max dropped:{}".format(dropped_max))
+                elif not line.startswith("Temp"):
+                    #parse time in seconds
+                    hms = [3600,60,1]
+                    time_read = sum([a*b for a,b in zip(hms, map(int,line.split(':')))])
+                    if time_read != 0:
+                        time_values.append(time_read)
+
+    #TODO standard deviation
+    stats = {}
+    stats["rssi_min"]    = min(rssi_values)
+    stats["rssi_max"]    = max(rssi_values)
+    stats["rssi_avg"]    = sum(rssi_values)/len(rssi_values)
+    stats["lqi_min"]     =  min(lqi_values)
+    stats["lqi_max"]     =  max(lqi_values)
+    stats["lqi_avg"]     =  sum(lqi_values)/len(lqi_values)
+    stats["dropped_min"] = min(dropped_values)
+    stats["dropped_max"] = max(dropped_values)
+    stats["dropped_avg"] = sum(dropped_values)/len(dropped_values)
+    stats["time_min"]    = min(time_values)
+    stats["time_max"]    = max(time_values)
+    stats["time_avg"]    = sum(time_values)/len(time_values)
+
+    return stats
 
 def get_information_by_path(file_path):
     information = {}
@@ -146,8 +155,10 @@ def get_files_by(filters):
                     continue
                 if filters["txpower"] and filters["txpower"] != info["txpower"]:
                     continue
-                if filters["param"] == "time" or filters["param"] == info["param"]:
-                    relevant_files.append(os.path.join(root,name))
+                if filters["param"] and filters["param"] != info["param"]:
+                    continue
+
+                relevant_files.append(os.path.join(root,name))
 
     return relevant_files
 
@@ -259,7 +270,7 @@ if len(sys.argv) > 1 and sys.argv[1] == "all":
 elif len(sys.argv) > 2:
     arguments = {}
     #default args
-    arguments["param"] = "time"
+    arguments["param"] = None
     arguments["platform"] = None
     arguments["orientation"] = None
     arguments["channel"] = None
@@ -270,7 +281,12 @@ elif len(sys.argv) > 2:
             arguments[arg.split("=")[0]] = arg.split("=")[1]
 
     relevant_files = get_files_by(arguments)
-    #TODO
+
+    print(len(relevant_files))
+
+    stats = get_min_max_avg(relevant_files)
+
+    print_stats_table(stats)
 
 elif len(sys.argv) > 1 and sys.argv[1] == "ranges":
     print_ranges()

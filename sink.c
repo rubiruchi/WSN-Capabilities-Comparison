@@ -14,13 +14,12 @@
 #include "dev/sht11/sht11-sensor.h"
 #endif
 
-#ifdef openmote
-#define sht21_s
-#include "dev/button-sensor.h"
-#include "dev/sht21.h"
-
-#define TEMPSENSOR sht21
-#endif
+// #ifdef openmote
+// #define sht21_s
+// #include "dev/button-sensor.h"
+// #include "dev/sht21.h"
+// #define TEMPSENSOR sht21
+// #endif
 
 #ifdef sensortag
 #define hdc
@@ -69,9 +68,9 @@ static void read_temperature(){
   ((unsigned) (-4 + 0.0405 * rh -2.8e-6 * (rh * rh))) );
   #endif
 
-  #ifdef sht21_s
-  printf("NODE$Temp@%u\n", sht21.value(SHT21_READ_TEMP) / 100);
-  #endif
+  // #ifdef sht21_s
+  // printf("NODE$Temp@%u\n", sht21.value(SHT21_READ_TEMP) / 100);
+  // #endif
 
   #ifdef hdc
   printf("NODE$Temp@%d | Hum@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP) / 100,
@@ -106,7 +105,9 @@ PROCESS_THREAD(sink_process, ev, data){
   reset_counter = 0;
 
   leds_on(LEDS_GREEN);
+  #ifndef openmote
   SENSORS_ACTIVATE(TEMPSENSOR);
+  #endif
   leds_on(LEDS_ALL);
 
   printf("NODE$Booted\n");
