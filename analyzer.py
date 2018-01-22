@@ -171,7 +171,11 @@ def create_graph(information):
         path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_channel(channel),readable_txpower(txpower)))
         if not os.path.exists(path):
             os.makedirs(path)
-        filename = platform+","+readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(param)+"->"+orientation
+        if platform == "openmote-2538":
+            platform = "openmote"
+        if platform == "srf06-cc26xx":
+            platform = "sensortag"
+        filename = platform+","+readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(param)
         if os.path.isfile(os.path.join(path,filename+".png")):
             return
 
@@ -229,8 +233,8 @@ def parse_file(file_path):
             elif line.startswith("Temp"):
                 line.replace(" ", "")
                 split_line = line.split("|")
-                information["temp"] = split_line[0][-2:-1]
-                information["hum"]  = split_line[1][-2:-1]
+                information["temp"] = split_line[0][-3:-1]
+                information["hum"]  = split_line[1][-3:-1]
 
             else:
                 #parse time in seconds
