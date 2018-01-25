@@ -189,7 +189,6 @@ def handle_line(line):
         #print(strftime("%H:%M:%S",gmtime(time())) + ">measurement complete")
         complete = True
 
-
 #throws the debugger board of the sensortags out of the devices list in case it is present
 def throw_out_debugger():
     highest = 0
@@ -245,6 +244,8 @@ for config in configurations:
         if rebooted:
             rebooted = False
             print(strftime("%H:%M:%S",gmtime(time())) + ">Sink rebooted")
+            with open(os.path.join(DIRECTORY_PATH,filename),'a+') as f:
+                f.write("SKIPPED"+'\n')
             sleep(0.2)
             break
 
