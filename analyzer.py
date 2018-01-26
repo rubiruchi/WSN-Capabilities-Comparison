@@ -125,27 +125,36 @@ def get_min_max_avg(relevant_files):
                         time_values.append(time_read)
 
             lines_values.append(line_counter)
+
+        #print "file ", filepath, "  rssi",len(rssi_values) ,"  lqi" ,len(lqi_values), "  dropped",len(dropped_values), "  time",len(time_values), "  line",len(lines_values), "  size",len(size_values)
+
     #TODO standard deviation
     stats = {}
-    stats["min"] = [min(rssi_values),
-                    min(lqi_values),
-                    min(dropped_values),
-                    min(time_values),
-                    min(lines_values),
-                    min(size_values)]
-    stats["max"] = [max(rssi_values),
-                    max(lqi_values),
-                    max(dropped_values),
-                    max(time_values),
-                    max(lines_values),
-                    max(size_values)]
-    stats["avg"] = [sum(rssi_values)/len(rssi_values),
-                    sum(lqi_values)/len(lqi_values),
-                    sum(dropped_values)/len(dropped_values),
-                    sum(time_values)/len(time_values),
-                    sum(lines_values)/len(lines_values),
-                    sum(size_values)/len(size_values)]
-    stats["failed_transmissions"] = failed_transmissions
+    if relevant_files:
+        if not rssi_values or not lqi_values or not dropped_values:
+            rssi_values.append(0)
+            lqi_values.append(0)
+            dropped_values.append(0)
+
+        stats["min"] = [min(rssi_values),
+                        min(lqi_values),
+                        min(dropped_values),
+                        min(time_values),
+                        min(lines_values),
+                        min(size_values)]
+        stats["max"] = [max(rssi_values),
+                        max(lqi_values),
+                        max(dropped_values),
+                        max(time_values),
+                        max(lines_values),
+                        max(size_values)]
+        stats["avg"] = [sum(rssi_values)/len(rssi_values),
+                        sum(lqi_values)/len(lqi_values),
+                        sum(dropped_values)/len(dropped_values),
+                        sum(time_values)/len(time_values),
+                        sum(lines_values)/len(lines_values),
+                        sum(size_values)/len(size_values)]
+        stats["failed_transmissions"] = failed_transmissions
 
     return stats
 
@@ -285,7 +294,7 @@ def create_lineplot(ordered_dict,info):
         info["platform"] = "openmote"
     if info["platform"] == "srf06-cc26xx":
         info["platform"] = "sensortag"
-    filename = info["platform"]+" "+readable_param(info["parameter"])
+    filename = readable_param(info["parameter"])+" "+info["platform"]
 
     plot.savefig(os.path.join(path,filename))
 
@@ -354,7 +363,7 @@ def parse_arguments():
 
 
 
-if len(sys.argv) > 1 and sys.argv[1] == "allboxplots":
+if len(sys.argv) > 1 and sys.argv[1] == "boxplots":
     relevant_files = get_all_files()
 
     for file_path in relevant_files:
@@ -381,13 +390,20 @@ elif len(sys.argv) > 1 and sys.argv[1] == "dbm":
     print("Converting sky/z1 files to dbm")
     convert_to_dbm()
 
-elif len(sys.argv) > 1 and sys.argv[1] == "lineplot":
+elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
     arguments = parse_arguments()
+
     txpowers = {}
     txpowers["openmote-cc2538"] = [5,3,1,0,-1,-3,-5,-7,-15]
     txpowers["srf06-cc26xx"] = [5,3,1,0,-3,-15]
     txpowers["z1"] = [0,-1,-3,-5,-7,-15]
     txpowers["sky"] = [0,-1,-3,-5,-7,-15]
+
+    platforms = []
+    if not arguments["platform"]:
+        platforms = txpowers.keys()
+    else:
+        platforms.append(arguments["platform"])
 
     indices = {}
     indices["0"] = 0
@@ -396,22 +412,35 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplot":
     indices["time"] = 3
     indices["lines"] = 4
     indices["size"] = 5
+    indices["failed"] = None
+
+    parameters = []
+    if not arguments["parameter"]:
+        parameters = indices.keys()
+    else:
+        parameters.append(arguments["parameter"])
 
     channel_to_txval = OrderedDict()
-    for channel in range(11,27):
-        arguments["channel"] = str(channel)
-        channel_to_txval[channel] = ([],[])
-        for txpower in txpowers[arguments["platform"]]:
-            channel_to_txval[channel][0].append(txpower)
-            arguments["txpower"] = str(txpower)
-            stats = get_min_max_avg(get_files_by(arguments))
-            if arguments["parameter"] == "failed":
-                channel_to_txval[channel][1].append(stats["failed_transmissions"])
-            else:
-                index = indices[arguments["parameter"]]
-                channel_to_txval[channel][1].append(stats["avg"][index])
+    for parameter in parameters:
+        arguments["parameter"] = parameter
+        for platform in platforms:
+            arguments["platform"] = platform
+            for channel in range(11,27):
+                arguments["channel"] = str(channel)
+                channel_to_txval[arguments["channel"]] = ([],[])
+                for txpower in txpowers[arguments["platform"]]:
+                    channel_to_txval[arguments["channel"]][0].append(txpower)
+                    arguments["txpower"] = str(txpower)
+                    print arguments["platform"],arguments["channel"],arguments["txpower"]
+                    stats = get_min_max_avg(get_files_by(arguments))
+                    if stats:
+                        if arguments["parameter"] == "failed":
+                            channel_to_txval[arguments["channel"]][1].append(stats["failed_transmissions"])
+                        else:
+                            index = indices[arguments["parameter"]]
+                            channel_to_txval[arguments["channel"]][1].append(stats["avg"][index])
 
-
-    create_lineplot(channel_to_txval,arguments)
+            if channel_to_txval[arguments["channel"]][1]:
+                create_lineplot(channel_to_txval,arguments)
 
 print("Finished")
