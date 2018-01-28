@@ -56,6 +56,14 @@ def readable_txpower(txpower):
 
     return r_txpow
 
+def mean(list):
+    mean = None
+    list = [x for x in list if x is not None]
+    if list:
+        mean = sum(list)/len(list)
+
+    return mean
+
 def get_measurement_directory_path():
     directory_path = '/media/pi/Experiments'
     #if stick not present use pardir
@@ -97,6 +105,7 @@ def get_min_max_avg(relevant_files):
         with open(filepath,'r') as experiment_file:
             line_counter = 0
             size_values.append(os.path.getsize(filepath)/1000)
+            failed_transmissions = 0
             for line in experiment_file:
                 if line.startswith("{"):
                     line_counter += 1
@@ -108,13 +117,13 @@ def get_min_max_avg(relevant_files):
                         elif measurement["param"] == "LQI" and measurement["value"] != "0":
                             lqi_values.append(int(measurement["value"]))
 
-                        elif measurement["param"] == "Dropped" and measurement["value"] != "0":
+                        elif measurement["param"] == "Dropped":
                             dropped_read = int(measurement["value"])
                             if dropped_read < 0:
                                 dropped_read += 256
                             dropped_values.append(dropped_read)
 
-                        if measurement["value"] == "0":
+                        if measurement["value"] == "0" and not measurement["param"] == "Dropped":
                             failed_transmissions += 1
 
                 elif not line.startswith("Temp"):
@@ -132,9 +141,9 @@ def get_min_max_avg(relevant_files):
     stats = {}
     if relevant_files:
         if not rssi_values or not lqi_values or not dropped_values:
-            rssi_values.append(0)
-            lqi_values.append(0)
-            dropped_values.append(0)
+            rssi_values.append(None)
+            lqi_values.append(None)
+            dropped_values.append(None)
 
         stats["min"] = [min(rssi_values),
                         min(lqi_values),
@@ -148,12 +157,16 @@ def get_min_max_avg(relevant_files):
                         max(time_values),
                         max(lines_values),
                         max(size_values)]
-        stats["avg"] = [sum(rssi_values)/len(rssi_values),
-                        sum(lqi_values)/len(lqi_values),
-                        sum(dropped_values)/len(dropped_values),
-                        sum(time_values)/len(time_values),
-                        sum(lines_values)/len(lines_values),
-                        sum(size_values)/len(size_values)]
+
+        stats["avg"] = []
+
+        stats["avg"].insert(0,mean(rssi_values))
+        stats["avg"].insert(1,mean(lqi_values))
+        stats["avg"].insert(2,mean(dropped_values))
+        stats["avg"].insert(3,mean(time_values))
+        stats["avg"].insert(4,mean(lines_values))
+        stats["avg"].insert(5,mean(size_values))
+
         stats["failed_transmissions"] = failed_transmissions
 
     return stats
@@ -172,7 +185,7 @@ def get_information_by_path(file_path):
     information["number_of_nodes"] = split_file_name[0]
     information["channel"] = split_file_name[1]
     information["txpower"] = split_file_name[2]
-    information["param"] = split_file_name[3]
+    information["parameter"] = split_file_name[3]
 
     return information
 
@@ -203,6 +216,8 @@ def get_files_by(filters):
                 if filters["channel"] and filters["channel"] != info["channel"]:
                     continue
                 if filters["txpower"] and filters["txpower"] != info["txpower"]:
+                    continue
+                if filters["parameter"] and filters["parameter"] != info["parameter"]:
                     continue
 
                 relevant_files.append(os.path.join(root,name))
@@ -278,9 +293,9 @@ def create_lineplot(ordered_dict,info):
             pltlist[i].set_xticks(data[0][0])
             pltlist[i].set_ylabel(readable_param(info["parameter"]))
             pltlist[i].set_xlabel("Transmission powers")
-            chan_mean.append([np.mean(tx_value[1])])
+            chan_mean.append(mean(tx_value[1]))
 
-        plot_mean =  [np.mean(chan_mean)]*len(tx_value[0])
+        plot_mean =  [mean(chan_mean)]*len(tx_value[0])
         pltlist[i].plot(my_data[0][0],plot_mean, linestyle='--')
 
     f.set_size_inches(30, 10)
@@ -297,6 +312,7 @@ def create_lineplot(ordered_dict,info):
     filename = readable_param(info["parameter"])+" "+info["platform"]
 
     plot.savefig(os.path.join(path,filename))
+    plot.close()
 
 def parse_file(file_path):
     information = get_information_by_path(file_path)
@@ -431,7 +447,7 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
                 for txpower in txpowers[arguments["platform"]]:
                     channel_to_txval[arguments["channel"]][0].append(txpower)
                     arguments["txpower"] = str(txpower)
-                    print arguments["platform"],arguments["channel"],arguments["txpower"]
+                    print arguments["parameter"],arguments["platform"],arguments["channel"],arguments["txpower"]
                     stats = get_min_max_avg(get_files_by(arguments))
                     if stats:
                         if arguments["parameter"] == "failed":
