@@ -4,6 +4,15 @@ import matplotlib.pyplot as plot
 import numpy as np
 from collections import OrderedDict
 
+indices = OrderedDict()
+indices["0"] = 0 #RSSI
+indices["1"] = 1 #LQI
+indices["2"] = 2 #DROPPED
+indices["time"] = 3
+indices["lines"] = 4
+indices["size"] = 5
+indices["failed"] = 6
+
 def convert_to_dbm():
     d_path = get_measurement_directory_path()
     for root, dirs, files in os.walk(d_path, topdown=False):
@@ -56,13 +65,45 @@ def readable_txpower(txpower):
 
     return r_txpow
 
-def mean(list):
+def mean(array):
     mean = None
-    list = [x for x in list if x is not None]
-    if list:
-        mean = sum(list)/len(list)
+    array = [x for x in array if x is not None]
+    if array:
+        mean = sum(array)/len(array)
 
     return mean
+
+def std(array):
+    deviation = None
+    array = [x for x in array if x is not None]
+    if array:
+        deviation = np.std(array)
+
+    return deviation
+
+def set_ylimits(parameter, function):
+    avg = {"0":(-85,-38),
+           "1":(80,110),
+           "2":(0,160),
+           "lines":(0,2000),
+           "failed":(0,1400),
+           "size":(None,None),
+           "time":(None,None)
+          }
+
+    dev = {"0":(0,10),
+           "1":(0,12),
+           "2":(20,110),
+           "lines":(0,2000),
+           "failed":(0,1400),
+           "size":(None,None),
+           "time":(None,None)
+          }
+
+    if function and function == "deviation":
+        return dev[parameter]
+    elif not function or function == "average":
+        return avg[parameter]
 
 def get_measurement_directory_path():
     directory_path = '/media/pi/Experiments'
@@ -87,10 +128,12 @@ def print_stats_table(stats):
     params = ("RSSI","LQI","DRP","Time","Lines","Size")
     print "\t","\t".join(param for param in params)
 
-    print "min\t" , "\t".join(str(val) for val in stats["min"])
-    print "max\t" , "\t".join(str(val) for val in stats["max"])
-    print "avg\t" , "\t".join(str(val) for val in stats["avg"])
-    print "\nFailed:\t",str(stats["failed_transmissions"])
+    if stats:
+        print "min\t" , "\t".join(str(val) for val in stats["min"])
+        print "max\t" , "\t".join(str(val) for val in stats["max"])
+        print "avg\t" , "\t".join(str(val) for val in stats["avg"])
+        print "dev\t" , "\t".join(str(int(val)) for val in stats["dev"])
+        print "\nFailed:\t",str(stats["failed_transmissions"])
 
 def get_min_max_avg(relevant_files):
     rssi_values = []
@@ -108,9 +151,9 @@ def get_min_max_avg(relevant_files):
             failed_transmissions = 0
             for line in experiment_file:
                 if line.startswith("{"):
-                    line_counter += 1
                     measurement = eval(line)
                     if measurement["sender"] == "1" or measurement["receiver"] == "1":
+                        line_counter += 1
                         if measurement["param"] == "RSSI" and measurement["value"] != "0":
                             rssi_values.append(int(measurement["value"]))
 
@@ -135,11 +178,9 @@ def get_min_max_avg(relevant_files):
 
             lines_values.append(line_counter)
 
-        #print "file ", filepath, "  rssi",len(rssi_values) ,"  lqi" ,len(lqi_values), "  dropped",len(dropped_values), "  time",len(time_values), "  line",len(lines_values), "  size",len(size_values)
 
-    #TODO standard deviation
-    stats = {}
     if relevant_files:
+        stats = {}
         if not rssi_values or not lqi_values or not dropped_values:
             rssi_values.append(None)
             lqi_values.append(None)
@@ -168,6 +209,15 @@ def get_min_max_avg(relevant_files):
         stats["avg"].insert(5,mean(size_values))
 
         stats["failed_transmissions"] = failed_transmissions
+
+        stats["dev"] = [std(rssi_values),
+                        std(lqi_values),
+                        std(dropped_values),
+                        std(time_values),
+                        std(lines_values),
+                        std(size_values)]
+    else:
+        stats = None
 
     return stats
 
@@ -217,10 +267,11 @@ def get_files_by(filters):
                     continue
                 if filters["txpower"] and filters["txpower"] != info["txpower"]:
                     continue
-                if filters["parameter"] and filters["parameter"] != info["parameter"]:
+                if filters["parameter"] and filters["parameter"] != info["parameter"] and (filters["parameter"] == "0" or filters["parameter"] == "1" or filters["parameter"] == "2"):
                     continue
 
-                relevant_files.append(os.path.join(root,name))
+                if os.path.getsize(os.path.join(root,name))/1000 > 50:
+                    relevant_files.append(os.path.join(root,name))
 
     return relevant_files
 
@@ -274,45 +325,53 @@ def create_boxplot(information):
         plot.close()
 
 def create_lineplot(ordered_dict,info):
-    # four subplots, unpack the axes array immediately
-    f, pltlist = plot.subplots(1, 4, sharey=True)
+    global indices
 
     labels = ordered_dict.keys()
-    data = ordered_dict.values()
+    tx_val_list_list = ordered_dict.values()          #list consisting of lists consisting of tuples.
 
-    plot.suptitle("Platform:{}\nAverage {}".format(info["platform"],readable_param(info["parameter"])),fontsize=20)
+    for parameter in indices.keys():
+        # four subplots, unpack the axes array immediately
+        f, pltlist = plot.subplots(1, 4, sharey=True)
 
-    for i in range(0,4):
-        my_labels = labels[i*4:i*4+4]
-        my_data = data[i*4:i*4+4]
-        chan_mean = []
-        for tx_value in my_data:
-            pltlist[i].plot(tx_value[0],tx_value[1],marker='o',linewidth=2.0)
-            pltlist[i].legend(my_labels, loc='upper left')
-            pltlist[i].grid()
-            pltlist[i].set_xticks(data[0][0])
-            pltlist[i].set_ylabel(readable_param(info["parameter"]))
-            pltlist[i].set_xlabel("Transmission powers")
-            chan_mean.append(mean(tx_value[1]))
+        if not info["function"]:
+            info["function"] = "average"
+        plot.suptitle("Platform:{}\n{} {}".format(info["platform"],info["function"],readable_param(parameter)),fontsize=20)
 
-        plot_mean =  [mean(chan_mean)]*len(tx_value[0])
-        pltlist[i].plot(my_data[0][0],plot_mean, linestyle='--')
+        for i in range(0,4):
+            my_labels = labels[i*4:i*4+4]             #reduce list of channels to the 4 relevant for the plot
+            my_data = tx_val_list_list[i*4:i*4+4]     #reduce list of tx_value lists to the 4 correstponding to the channels
+            chan_mean = []
+            for tx_value_list in my_data:
+                tx_value = tx_value_list[indices[parameter]]
+                pltlist[i].plot(tx_value[0],tx_value[1],marker='o',linewidth=2.0)
+                pltlist[i].legend(my_labels, loc='upper left')
+                pltlist[i].grid()
+                pltlist[i].set_xticks(tx_value[0])
+                pltlist[i].set_ylabel(readable_param(parameter))
+                pltlist[i].set_ylim(*set_ylimits(parameter,info["function"]))
+                pltlist[i].set_xlabel("Transmission powers")
+                chan_mean.append(mean(tx_value[1]))
 
-    f.set_size_inches(30, 10)
-    plot.subplots_adjust(left=0.03, bottom=0.10, right=0.99, top=0.90,
-                wspace=0.04, hspace=0.20)
+            plot_mean =  [mean(chan_mean)]*len(my_data[0][0][0])
+            pltlist[i].plot(my_data[0][0][0],plot_mean, linestyle='--')
 
-    path = os.path.join(os.pardir,"Plots/Line")
-    if not os.path.exists(path):
-        os.makedirs(path)
-    if info["platform"] == "openmote-2538":
-        info["platform"] = "openmote"
-    if info["platform"] == "srf06-cc26xx":
-        info["platform"] = "sensortag"
-    filename = readable_param(info["parameter"])+" "+info["platform"]
+        f.set_size_inches(30, 10)
+        plot.subplots_adjust(left=0.03, bottom=0.10, right=0.99, top=0.90,
+                    wspace=0.04, hspace=0.20)
 
-    plot.savefig(os.path.join(path,filename))
-    plot.close()
+
+        path = os.path.join(os.pardir,"Plots/Line/{}".format(info["function"]))
+        if not os.path.exists(path):
+            os.makedirs(path)
+        if info["platform"] == "openmote-2538":
+            info["platform"] = "openmote"
+        if info["platform"] == "srf06-cc26xx":
+            info["platform"] = "sensortag"
+        filename = readable_param(parameter)+" "+info["platform"]
+
+        plot.savefig(os.path.join(path,filename))
+        plot.close()
 
 def parse_file(file_path):
     information = get_information_by_path(file_path)
@@ -370,6 +429,7 @@ def parse_arguments():
     arguments["txpower"] = None
     arguments["sizes"] = None
     arguments["parameter"] = None
+    arguments["function"] = None
 
     for arg in sys.argv:
         if "=" in arg:
@@ -421,42 +481,51 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
     else:
         platforms.append(arguments["platform"])
 
-    indices = {}
-    indices["0"] = 0
-    indices["1"] = 1
-    indices["2"] = 2
-    indices["time"] = 3
-    indices["lines"] = 4
-    indices["size"] = 5
-    indices["failed"] = None
-
     parameters = []
     if not arguments["parameter"]:
         parameters = indices.keys()
     else:
         parameters.append(arguments["parameter"])
 
-    channel_to_txval = OrderedDict()
-    for parameter in parameters:
-        arguments["parameter"] = parameter
-        for platform in platforms:
-            arguments["platform"] = platform
-            for channel in range(11,27):
-                arguments["channel"] = str(channel)
-                channel_to_txval[arguments["channel"]] = ([],[])
-                for txpower in txpowers[arguments["platform"]]:
-                    channel_to_txval[arguments["channel"]][0].append(txpower)
-                    arguments["txpower"] = str(txpower)
-                    print arguments["parameter"],arguments["platform"],arguments["channel"],arguments["txpower"]
-                    stats = get_min_max_avg(get_files_by(arguments))
-                    if stats:
-                        if arguments["parameter"] == "failed":
-                            channel_to_txval[arguments["channel"]][1].append(stats["failed_transmissions"])
-                        else:
-                            index = indices[arguments["parameter"]]
-                            channel_to_txval[arguments["channel"]][1].append(stats["avg"][index])
+    channel_to_txval = OrderedDict()                                                                            # an ordered dict {"channel":[([txpowers],[values])]}
 
-            if channel_to_txval[arguments["channel"]][1]:
-                create_lineplot(channel_to_txval,arguments)
+    for platform in platforms:
+        arguments["platform"] = platform
+
+        for channel in range(11,27):
+            arguments["channel"] = str(channel)
+            channel_to_txval[arguments["channel"]] = []
+            for i in range(len(indices.keys())):
+                channel_to_txval[arguments["channel"]].append((txpowers[arguments["platform"]],[]))        # mapping channels to lists containing tuples for each parameter
+
+            for txpower in txpowers[arguments["platform"]]:                                                 #connecting a list of txpowers
+                arguments["txpower"] = str(txpower)
+                print arguments["platform"],arguments["channel"],arguments["txpower"]
+                stats = get_min_max_avg(get_files_by(arguments))
+
+                for parameter in indices.keys():
+                    index = indices[parameter]
+                    #print "parameter", parameter
+                    #print "index", index
+                    if stats:
+                        if parameter == "failed":
+                            #print "appending", stats["failed_transmissions"]
+                            channel_to_txval[arguments["channel"]][index][1].append(stats["failed_transmissions"])  #with a list of values
+                        else:
+                            if arguments["function"] and arguments["function"]  == "deviation":
+                                channel_to_txval[arguments["channel"]][index][1].append(stats["dev"][index])
+                            else:
+                                #print "appending", stats["avg"][index]
+                                channel_to_txval[arguments["channel"]][index][1].append(stats["avg"][index])
+
+                        #print channel_to_txval[arguments["channel"]][index]
+                        #print channel_to_txval[arguments["channel"]]
+
+                    else:
+                        #print channel_to_txval[arguments["channel"]]
+                        channel_to_txval[arguments["channel"]][index][1].append(None)
+
+
+        create_lineplot(channel_to_txval,arguments)
 
 print("Finished")
