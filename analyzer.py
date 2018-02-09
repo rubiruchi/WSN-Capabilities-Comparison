@@ -12,6 +12,7 @@ indices["time"] = 3
 indices["lines"] = 4
 indices["size"] = 5
 indices["failed"] = 6
+indices["packetlossrate"] = 7
 
 def convert_to_dbm():
     d_path = get_measurement_directory_path()
@@ -69,7 +70,7 @@ def mean(array):
     mean = None
     array = [x for x in array if x is not None]
     if array:
-        mean = sum(array)/len(array)
+        mean = sum(array)/float(len(array))
 
     return mean
 
@@ -81,6 +82,10 @@ def std(array):
 
     return deviation
 
+def truncate(num):
+    if num:
+        return int(num)
+
 def set_ylimits(parameter, function):
     avg = {"0":(-85,-38),
            "1":(80,110),
@@ -88,16 +93,18 @@ def set_ylimits(parameter, function):
            "lines":(0,2000),
            "failed":(0,1400),
            "size":(None,None),
-           "time":(None,None)
+           "time":(None,None),
+           "packetlossrate":(0,0.45)
           }
 
-    dev = {"0":(0,10),
+    dev = {"0":(0,15),
            "1":(0,12),
            "2":(20,110),
            "lines":(0,2000),
            "failed":(0,1400),
            "size":(None,None),
-           "time":(None,None)
+           "time":(None,None),
+           "packetlossrate":(0,0.45)
           }
 
     if function and function == "deviation":
@@ -125,15 +132,14 @@ def print_file_sizes(relevant_files):
         print filepath+"\t", os.path.getsize(filepath)/1000
 
 def print_stats_table(stats):
-    params = ("RSSI","LQI","DRP","Time","Lines","Size")
+    params = ("RSSI","LQI","DRP","Time","Lines","Size","Failed")
     print "\t","\t".join(param for param in params)
 
     if stats:
-        print "min\t" , "\t".join(str(val) for val in stats["min"])
-        print "max\t" , "\t".join(str(val) for val in stats["max"])
-        print "avg\t" , "\t".join(str(val) for val in stats["avg"])
-        print "dev\t" , "\t".join(str(int(val)) for val in stats["dev"])
-        print "\nFailed:\t",str(stats["failed_transmissions"])
+        print "min\t" , "\t".join(str(truncate(val)) for val in stats["min"])
+        print "max\t" , "\t".join(str(truncate(val)) for val in stats["max"])
+        print "avg\t" , "\t".join(str(truncate(val)) for val in stats["avg"])
+        print "dev\t" , "\t".join(str(truncate(val)) for val in stats["dev"])
 
 def get_min_max_avg(relevant_files):
     rssi_values = []
@@ -142,7 +148,7 @@ def get_min_max_avg(relevant_files):
     time_values = []
     size_values = []
     lines_values = []
-    failed_transmissions = 0
+    failed_values = []
 
     for filepath in relevant_files:
         with open(filepath,'r') as experiment_file:
@@ -175,15 +181,17 @@ def get_min_max_avg(relevant_files):
                     time_read = sum([a*b for a,b in zip(hms, map(int,line.split(':')))])
                     if time_read != 0:
                         time_values.append(time_read)
-
+            failed_values.append(failed_transmissions)
             lines_values.append(line_counter)
 
 
     if relevant_files:
         stats = {}
-        if not rssi_values or not lqi_values or not dropped_values:
+        if not rssi_values:
             rssi_values.append(None)
+        if not lqi_values:
             lqi_values.append(None)
+        if not dropped_values:
             dropped_values.append(None)
 
         stats["min"] = [min(rssi_values),
@@ -191,31 +199,31 @@ def get_min_max_avg(relevant_files):
                         min(dropped_values),
                         min(time_values),
                         min(lines_values),
-                        min(size_values)]
+                        min(size_values),
+                        min(failed_values)]
         stats["max"] = [max(rssi_values),
                         max(lqi_values),
                         max(dropped_values),
                         max(time_values),
                         max(lines_values),
-                        max(size_values)]
-
-        stats["avg"] = []
-
-        stats["avg"].insert(0,mean(rssi_values))
-        stats["avg"].insert(1,mean(lqi_values))
-        stats["avg"].insert(2,mean(dropped_values))
-        stats["avg"].insert(3,mean(time_values))
-        stats["avg"].insert(4,mean(lines_values))
-        stats["avg"].insert(5,mean(size_values))
-
-        stats["failed_transmissions"] = failed_transmissions
-
+                        max(size_values),
+                        max(failed_values)]
+        stats["avg"] = [mean(rssi_values),
+                        mean(lqi_values),
+                        mean(dropped_values),
+                        mean(time_values),
+                        mean(lines_values),
+                        mean(size_values),
+                        mean(failed_values)]
         stats["dev"] = [std(rssi_values),
                         std(lqi_values),
                         std(dropped_values),
                         std(time_values),
                         std(lines_values),
-                        std(size_values)]
+                        std(size_values),
+                        std(failed_values)]
+        stats["packetlossrate"] = stats["avg"][indices["failed"]]/float(stats["avg"][indices["lines"]])
+
     else:
         stats = None
 
@@ -427,7 +435,6 @@ def parse_arguments():
     arguments["orientation"] = None
     arguments["channel"] = None
     arguments["txpower"] = None
-    arguments["sizes"] = None
     arguments["parameter"] = None
     arguments["function"] = None
 
@@ -452,12 +459,9 @@ elif len(sys.argv) > 1 and sys.argv[1] == "table":
     arguments = parse_arguments()
     relevant_files = get_files_by(arguments)
     print "Number of relevant files:",len(relevant_files)
+    stats = get_min_max_avg(relevant_files)
+    print_stats_table(stats)
 
-    if not arguments["sizes"]:
-        stats = get_min_max_avg(relevant_files)
-        print_stats_table(stats)
-    else:
-        print_file_sizes(relevant_files)
 
 elif len(sys.argv) > 1 and sys.argv[1] == "ranges":
     print_ranges()
@@ -508,9 +512,8 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
                     #print "parameter", parameter
                     #print "index", index
                     if stats:
-                        if parameter == "failed":
-                            #print "appending", stats["failed_transmissions"]
-                            channel_to_txval[arguments["channel"]][index][1].append(stats["failed_transmissions"])  #with a list of values
+                        if parameter == "packetlossrate":
+                            channel_to_txval[arguments["channel"]][index][1].append(stats["packetlossrate"])
                         else:
                             if arguments["function"] and arguments["function"]  == "deviation":
                                 channel_to_txval[arguments["channel"]][index][1].append(stats["dev"][index])
