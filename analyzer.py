@@ -40,20 +40,20 @@ def convert_to_dbm():
 
 def readable_channel(channel):
     r_chan = channel
-    if not r_chan:
+    if not r_chan or r_chan == "None":
         r_chan = "all"
 
     return r_chan
 
-def readable_param(param):
-    if param == "0":
+def readable_param(parameter):
+    if parameter == "0":
         r_param = "RSSI"
-    elif param == "1":
+    elif parameter == "1":
         r_param = "LQI"
-    elif param == "2":
+    elif parameter == "2":
         r_param = "dropped packages"
     else:
-        r_param = param
+        r_param = parameter
 
     return r_param
 
@@ -69,13 +69,18 @@ def readable_txpower(txpower):
     "7":"-15"
     }
 
-    if not r_txpow:
+    if not r_txpow or r_txpow == "None":
         r_txpow = "all"
 
     if not r_txpow == "all" and int(r_txpow) > 5:
         r_txpow = cc2420_to_dbm[r_txpow]
 
     return r_txpow
+
+def readable_orientation(orientation):
+    if not orientation or orientation == "None":
+        orientation = "all"
+    return orientation
 
 def mean(array):
     mean = None
@@ -143,8 +148,8 @@ def print_file_sizes(relevant_files):
         print filepath+"\t", os.path.getsize(filepath)/1000
 
 def print_stats_table(stats):
-    params = ("RSSI","LQI","DRP","Time","Lines","Size","Failed")
-    print "\t","\t".join(param for param in params)
+    parameters = ("RSSI","LQI","DRP","Time","Lines","Size","Failed")
+    print "\t","\t".join(parameter for parameter in parameters)
 
     if stats:
         print "min\t" , "\t".join(str(truncate(val)) for val in stats["min"])
@@ -294,51 +299,46 @@ def get_files_by(filters):
 
     return relevant_files
 
-def create_boxplot(information):
-    link_data         = information["link_data"]
-    channel           = information["channel"]
-    txpower           = information["txpower"]
-    orientation       = information["orientation"]
-    param             = information["param"]
+def create_boxplot(link_data,information):
+    channel = information["channel"]
+    txpower = information["txpower"]
+    orientation = information["orientation"]
+    parameter = information["parameter"]
     measurement_count = information["measurement_count"]
-    temp              = information["temp"]
-    hum               = information["hum"]
-    time              = information["time"]
-    platform          = information["platform"]
+    platform = information["platform"]
+    packetlossrate = information["packetlossrate"]
 
     od = OrderedDict(sorted(link_data.items()))
     data = od.values()
     labels = od.keys()
 
     if data:
-        path = os.path.join(os.pardir,"Plots/{}/{}/{}".format(orientation,readable_channel(channel),readable_txpower(txpower)))
+        path = os.path.join(os.pardir,"Plots/Box/{}/{}/{}".format(readable_orientation(orientation),readable_channel(channel),readable_txpower(txpower)))
         if not os.path.exists(path):
             os.makedirs(path)
         if platform == "openmote-2538":
             platform = "openmote"
         if platform == "srf06-cc26xx":
             platform = "sensortag"
-        filename = platform+","+readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(param)
+        filename = platform+","+readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(parameter)
         if os.path.isfile(os.path.join(path,filename+".png")):
             return
 
         plot.boxplot(data,vert=True,labels=labels)
-        plot.ylabel(param)
-        if param == "0":
-            plot.ylim(-100,0)
-        elif param == "1":
-            plot.ylim(0,255)
-        elif param == "2":
+        plot.ylabel(parameter)
+        if parameter == "0":
+            plot.ylim(-95,-20)
+        elif parameter == "1":
+            plot.ylim(50,118)
+        elif parameter == "2":
             plot.ylim(0,255)
         plot.xlabel("Links")
         plot.grid()
-        plot.title("Average {} channel:{} txpower:{}dBm\nMeasurements:{} Temperature:{}C Humidity:{}% Duration:{}s".format(readable_param(param),
-                                                                                                                                       readable_channel(channel),
-                                                                                                                                       readable_txpower(txpower),
-                                                                                                                                       measurement_count,
-                                                                                                                                       temp,
-                                                                                                                                       hum,
-                                                                                                                                       time))
+        plot.title("Average {} channel:{} txpower:{}dBm\nMeasurements:{} Packetlossrate:{}%".format(readable_param(parameter),
+                                                                                                    readable_channel(channel),
+                                                                                                    readable_txpower(txpower),
+                                                                                                    measurement_count,
+                                                                                                    packetlossrate))
 
         plot.savefig(os.path.join(path,filename))
         plot.close()
@@ -408,7 +408,6 @@ def parse_file(file_path):
     information["measurement_count"] = 0
     information["temp"] = 0
     information["hum"] = 0
-    information["time"] = 0
 
     #init dict (link : list)
     for i in range(2,int(information["number_of_nodes"])+1):
@@ -420,7 +419,7 @@ def parse_file(file_path):
             if line.startswith("{"):
                 information["measurement_count"] += 1
                 measurement = eval(line)
-                if information["param"] != "2" or (information["param"] == "2" and int(measurement["value"]) > 0):
+                if information["parameter"] != "2" or (information["parameter"] == "2" and int(measurement["value"]) > 0):
                     if int(measurement["sender"]) == 1:
                         information["link_data"][measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
                     elif int(measurement["receiver"]) == 1:
@@ -439,15 +438,64 @@ def parse_file(file_path):
                 information["temp"] = split_line[0][-3:-1]
                 information["hum"]  = split_line[1][-3:-1]
 
-            else:
-                #parse time in seconds
-                hms = [3600,60,1]
-                information["time"] = sum([a*b for a,b in zip(hms, map(int,line.split(':')))])
 
     if information["measurement_count"] >= 150:
         return information
     else:
         return None
+
+def boxplot_files(relevant_files,arguments):
+    information = arguments
+    if information["platform"] == "sky" or information["platform"] == "srf06-cc26xx":
+        information["number_of_nodes"] = "9"
+    else:
+        information["number_of_nodes"] = "5"
+
+    information["measurement_count"] = 0
+    information["temp"] = None
+    information["hum"] = None
+    information["packetlossrate"] = None
+
+    failed_values = 0
+    link_data = {}
+    #init dict (link : list)
+    for i in range(2,int(information["number_of_nodes"])+1):
+        link_data["1-"+str(i)] = []
+
+    for file_path in relevant_files:
+        with open(file_path,'r') as experiment_file:
+            for line in experiment_file:
+                #evaluate measurement and add measured value to list
+                if line.startswith("{"):
+                    measurement = eval(line)
+
+                    #check if dropped value is negative
+                    if information["parameter"] != "2" or (information["parameter"] == "2" and int(measurement["value"]) > 0):
+                        #only links with sink node
+                        if int(measurement["sender"]) == 1:
+                            information["measurement_count"] += 1
+                            if measurement["value"] != "0":
+                                link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
+                            else:
+                                failed_values += 1
+
+                        elif int(measurement["receiver"]) == 1:
+                            information["measurement_count"] += 1
+                            if measurement["value"] != "0":
+                                link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
+                            else:
+                                failed_values += 1
+
+                    #conversion signed to unsigned
+                    else:
+                        if int(measurement["sender"]) == 1 and int(measurement["value"]) < 0:
+                            link_data[measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"])+256)
+                        elif int(measurement["receiver"]) == 1 and int(measurement["value"]) < 0:
+                            link_data[measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"])+256)
+
+    if information["measurement_count"]:
+        information["packetlossrate"] = int((failed_values/float(information["measurement_count"]))*100)
+    create_boxplot(link_data,information)
 
 def parse_arguments():
     arguments = {}
@@ -468,13 +516,28 @@ def parse_arguments():
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "boxplots":
-    relevant_files = get_all_files()
+    arguments = parse_arguments()
 
-    for file_path in relevant_files:
-        print(file_path)
-        info = parse_file(file_path)
-        if info:
-            create_boxplot(info)
+    for platform in platforms:
+        arguments["platform"] = platform
+
+        for orientation in map(str,range(2,6))+[None]:
+            arguments["orientation"] = orientation
+
+            for channel in map(str,range(11,27))+[None]:
+                arguments["channel"] = channel
+
+                for txpower in map(str,txpowers[arguments["platform"]])+[None]:                                                 #connecting a list of txpowers
+                    arguments["txpower"] = txpower
+
+                    for parameter in range(3):
+                        arguments["parameter"] = str(parameter)
+                        relevant_files = get_files_by(arguments)
+                        print platform,orientation,channel,txpower,parameter,len(relevant_files)
+                        boxplot_files(relevant_files,arguments)
+
+
+
 
 elif len(sys.argv) > 1 and sys.argv[1] == "table":
     arguments = parse_arguments()
