@@ -2,9 +2,6 @@
 #define PROJECT_CONF_H_
 
 
-/* Change this to switch engines. Engine codes in uip-mcast6-engines.h */
-//#define UIP_MCAST6_CONF_ENGINE UIP_MCAST6_ENGINE_ROLL_TM
-
 #define DEFAULT_CHANNEL 26
 #define DEFAULT_TX_POWER 31
 #define MAX_NODES 9
@@ -32,15 +29,6 @@
 #undef UIP_CONF_TCP
 #define UIP_CONF_TCP                        0
 
-/* Code/RAM footprint savings so that things will fit on our device */
-#undef NBR_TABLE_CONF_MAX_NEIGHBORS
-#undef UIP_CONF_MAX_ROUTES
-//#define NBR_TABLE_CONF_MAX_NEIGHBORS        10
-//#define UIP_CONF_MAX_ROUTES                 10
-
-
-//#undef UIP_MCAST6_ROUTE_CONF_ROUTES
-//#define UIP_MCAST6_ROUTE_CONF_ROUTES        1
 
 #undef NETSTACK_CONF_RDC
 #define NETSTACK_CONF_RDC                   nullrdc_driver//contikimac_driver
