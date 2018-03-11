@@ -5,6 +5,7 @@ import numpy as np
 from collections import OrderedDict
 from datastorage import DataStorage
 from math import pi
+from copy import deepcopy
 
 indices = OrderedDict()
 indices["0"] = 0 #RSSI
@@ -113,7 +114,7 @@ def std(array):
     return deviation
 
 def truncate(num):
-    if num:
+    if not num is None:
         if num > 1:
             return int(num)
         else:
@@ -292,6 +293,120 @@ def get_files_by(filters):
 
     return relevant_files
 
+def parse_file_by_link(file_path):
+    information = get_information_by_path(file_path)
+
+    information["measurement_count"] = 0
+    information["temp"] = 0
+    information["hum"] = 0
+
+    #init dict (link : list)
+    information["link_data"] = OrderedDict()
+    for i in range(2,int(information["number_of_nodes"])+1):
+        information["link_data"]["1-"+str(i)] = []
+
+    with open(file_path,'r') as experiment_file:
+        for line in experiment_file:
+            #evaluate measurement and add measured value to list
+            if line.startswith("{"):
+                information["measurement_count"] += 1
+                measurement = eval(line)
+                if int(measurement["value"]) > 0:
+                    if int(measurement["sender"]) == 1:
+                        information["link_data"][measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
+                    elif int(measurement["receiver"]) == 1:
+                        information["link_data"][measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
+
+            elif line.startswith("Temp"):
+                line.replace(" ", "")
+                split_line = line.split("|")
+                information["temp"] = split_line[0][-3:-1]
+                information["hum"]  = split_line[1][-3:-1]
+
+
+    if information["measurement_count"] >= 250:
+        return information
+    else:
+        return None
+
+def parse_files_by_link(relevant_files,arguments):
+    #init dict (link : list)
+    link_data = OrderedDict()
+    link_data["1-2"] = []
+    link_data["1-6"] = []
+    link_data["1-3"] = []
+    link_data["1-7"] = []
+    link_data["1-4"] = []
+    link_data["1-8"] = []
+    link_data["1-5"] = []
+    link_data["1-9"] = []
+
+    link_pdr = OrderedDict()
+    link_pdr["1-2"] = [0,0,0] # pdr, failed , total
+    link_pdr["1-6"] = [0,0,0]
+    link_pdr["1-3"] = [0,0,0]
+    link_pdr["1-7"] = [0,0,0]
+    link_pdr["1-4"] = [0,0,0]
+    link_pdr["1-8"] = [0,0,0]
+    link_pdr["1-5"] = [0,0,0]
+    link_pdr["1-9"] = [0,0,0]
+
+    plat_to_ld = {}
+    for platform in platforms:
+        plat_to_ld[platform] = deepcopy(link_data)
+
+    plat_to_lpdr = {}
+    for platform in platforms:
+        plat_to_lpdr[platform] = deepcopy(link_pdr)
+
+    for file_path in relevant_files:
+        with open(file_path,'r') as experiment_file:
+
+            information = get_information_by_path(file_path)
+            platform = information["platform"]
+            orientation = int(information["orientation"])
+
+            information["measurement_count"] = 0
+            information["packetlossrate"] = []
+            failed_values = 0
+
+            for line in experiment_file:
+                #evaluate measurement and add measured value to list
+                if line.startswith("{"):
+                    measurement = eval(line)
+                    if  measurement["value"] != "0":
+                        information["measurement_count"] += 1
+                        #only links with sink node
+                        if measurement["sender"] == "1":
+                            receiver = equalize_node_ids(measurement["receiver"],orientation)
+                            #plat_to_ld[platform][measurement["sender"]+"-"+str(receiver)].append(int(measurement["value"]))
+                            plat_to_lpdr[platform][measurement["sender"]+"-"+str(receiver)][2] +=1
+                        elif measurement["receiver"] == "1":
+                            sender = equalize_node_ids(measurement["sender"],orientation)
+                            #plat_to_ld[platform][measurement["receiver"]+"-"+str(sender)].append(int(measurement["value"]))
+                            plat_to_lpdr[platform][measurement["receiver"]+"-"+str(sender)][2] +=1
+                    else:
+                        if measurement["sender"] == "1":
+                            receiver = equalize_node_ids(measurement["receiver"],orientation)
+                            plat_to_lpdr[platform][measurement["sender"]+"-"+str(receiver)][1] +=1
+                        elif measurement["receiver"] == "1":
+                            sender = equalize_node_ids(measurement["sender"],orientation)
+                            plat_to_lpdr[platform][measurement["receiver"]+"-"+str(sender)][1] +=1
+
+    #if information["measurement_count"]:
+        #information["packetlossrate"].append(truncate(failed_values/float(information["measurement_count"])))
+    for platform in platforms:
+        for link in link_pdr.keys():
+            if plat_to_lpdr[platform][link][2] != 0:
+                plat_to_lpdr[platform][link][0] = 1-truncate(plat_to_lpdr[platform][link][1]/float(plat_to_lpdr[platform][link][2]))
+                if plat_to_lpdr[platform][link][0] == 0:
+                    plat_to_lpdr[platform][link][0] = 1
+
+    #draw_boxplot(link_data,information)
+    information["channel"] = arguments["channel"]
+    information["txpower"] = arguments["txpower"]
+    draw_radarchart(plat_to_lpdr,information)
+
 def draw_boxplot(link_data,information):
     channel = information["channel"]
     txpower = information["txpower"]
@@ -342,7 +457,7 @@ def draw_lineplot(storage):
         for function in functions:
             for parameter in parameters: #plotting one figure
                 print "plotting", platform, parameter
-                f, pltlist = plot.subplots(1, 4, sharey=True)
+                f, pltlist = plot.subplots(2, 2, sharey=True)
                 if function == "avg":
                     plot.suptitle("Platform:{}\n Average {} with standard deviation".format(platform,readable_param(parameter)),fontsize=20)
                 else:
@@ -360,23 +475,22 @@ def draw_lineplot(storage):
                         error = dev_channels[j][parameter][1]
 
                         if  function != "avg":
-                            pltlist[i].plot(txpwrs,values,marker='o',linewidth=3.0)
+                            pltlist[int(i/2)][i%2].plot(txpwrs,values,marker='o',linewidth=3.0)
                         else:
-                            pltlist[i].errorbar(txpwrs,values,yerr=error,marker='o',linewidth=3.0)
+                            pltlist[int(i/2)][i%2].errorbar(txpwrs,values,yerr=error,marker='o',linewidth=3.0)
 
-                        pltlist[i].legend(four_labels, loc='upper left')
-                        pltlist[i].grid()
-                        pltlist[i].set_xticks([8]+txpwrs+[-18])
-                        pltlist[i].set_ylabel(readable_param(parameter))
-                        pltlist[i].set_ylim(*set_ylimits(parameter,"avg"))
-                        pltlist[i].set_xlabel("Transmission powers")
+                        pltlist[int(i/2)][i%2].legend(four_labels, loc='upper left')
+                        pltlist[int(i/2)][i%2].grid()
+                        pltlist[int(i/2)][i%2].set_xticks([8]+txpwrs+[-18])
+                        pltlist[int(i/2)][i%2].set_ylabel(readable_param(parameter))
+                        pltlist[int(i/2)][i%2].set_ylim(*set_ylimits(parameter,"avg"))
                         chan_mean.append(mean(values))
 
                     plot_mean =  [mean(chan_mean)]*len(txpowers[platform])
-                    pltlist[i].plot(txpowers[platform],plot_mean, linestyle='--')
+                    pltlist[int(i/2)][i%2].plot(txpowers[platform],plot_mean, linestyle='--')
 
-                f.set_size_inches(30, 10)
-                plot.subplots_adjust(left=0.03, bottom=0.10, right=0.99, top=0.90,
+                f.set_size_inches(17, 15)
+                plot.subplots_adjust(left=0.05, bottom=0.10, right=0.99, top=0.90,
                             wspace=0.04, hspace=0.20)
 
                 platform_r = platform
@@ -390,205 +504,182 @@ def draw_lineplot(storage):
                 if platform == "srf06-cc26xx":
                     platform_r = "sensortag"
 
-                filename = function+" "+readable_param(parameter)+" "+platform_r
+                filename = function+"_"+readable_param(parameter)+"_"+platform_r
+
+                #plot.setp([a.get_xticklabels() for a in pltlist[0, :]], visible=False)
+                #plot.setp([a.get_yticklabels() for a in pltlist[:, 1]], visible=False)
+                pltlist[1][0].set_xlabel("Transmission powers (dBm)")
+                pltlist[1][1].set_xlabel("Transmission powers (dBm)")
 
                 plot.savefig(os.path.join(path,filename))
                 plot.close()
 
-def draw_radarchart(link_data,information):
+def draw_radarchart(plat_to_ld,information):
     # Plots a radar chart.
 
     channel = information["channel"]
+    print "plotting", channel
     txpower = information["txpower"]
-    orientation = information["orientation"]
     parameter = information["parameter"]
-    measurement_count = information["measurement_count"]
-    platform = information["platform"]
-    packetlossrate = information["packetlossrate"]
 
-    # Set data
-    xlabels = link_data.keys()
-    values = []
-    for measurements in link_data.values():
-        values.append(mean(measurements))
+    for plt in plat_to_ld.keys():
+        for link in plat_to_ld[plt].keys():
+            #if not plat_to_ld[plt][link]:
+            if not plat_to_ld[plt][link][0]:
+                #print plat_to_ld[plt]
+                del plat_to_ld[plt][link]
+            if not plat_to_ld[plt]:
+                del plat_to_ld[plt]
 
-    N = len(xlabels)
-
-    x_as = [n / float(N) * 2 * pi for n in range(N)]
-
-    # Because our chart will be circular we need to append a copy of the first
-    # value of each list at the end of each list with data
-    values += values[:1]
-    x_as += x_as[:1]
+    xlabels0 = ["1-2","1-6","1-3","1-7","1-4","1-8","1-5","1-9"]
+    xlabels1 = ["1-2","1-3","1-4","1-5"]
+    plot0_platforms = ["sky","srf06-cc26xx"]
+    plot0_platforms = filter(lambda x: x in plat_to_ld.keys(), plot0_platforms)
+    plot1_platforms = ["openmote-cc2538","z1"]
+    plot1_platforms = filter(lambda x: x in plat_to_ld.keys(), plot1_platforms)
 
 
+    N0 = len(xlabels0)
+    x_as0 = [n / float(N0) * 2 * pi for n in range(N0)]
+    x_as0 += x_as0[:1]
     # Set color of axes
     plot.rc('axes', linewidth=0.5, edgecolor="#888888")
-
-
-    # Create polar plot
-    ax = plot.subplot(111, polar=True)
-
-
+    # Create polar plots
+    ax0 = plot.subplot(121, polar=True)
     # Set clockwise rotation. That is:
-    ax.set_theta_offset(pi / 2)
-    ax.set_theta_direction(-1)
-
-
+    ax0.set_theta_offset(pi / 2)
+    ax0.set_theta_direction(-1)
     # Set position of y-labels
-    ax.set_rlabel_position(0)
-
-
+    ax0.set_rlabel_position(22)
     # Set color and linestyle of grid
-    ax.xaxis.grid(True, color="#888888", linestyle='solid', linewidth=0.5)
-    ax.yaxis.grid(True, color="#888888", linestyle='solid', linewidth=0.5)
-
-
-    # Set number of radial axes and remove labels
-    plot.xticks(x_as[:-1], xlabels)
-
+    ax0.xaxis.grid(True, color="#888888", linestyle='solid', linewidth=0.5)
+    ax0.yaxis.grid(True, color="#888888", linestyle='solid', linewidth=0.5)
+    # Set number of radial axes and set labels
+    plot.xticks(x_as0[:-1], xlabels0)
     # Set yticks
-    plot.yticks([-30, -40, -50, -60, -70, -80, -90], ["-30", "-40", "-50", "-60", "-70", "-80", "-90"])
+    #plot.yticks([-30, -40, -50, -60, -70, -80, -90], ["-30", "-40", "-50", "-60", "-70", "-80", "-90"])
+    plot.yticks([1,0.875,0.75,0.625,0.5,0.375,0.25,0.125,0], ["1","0.875","0.75","0.625","0.5","0.375","0.25","0.125","0"])
+    ax0.tick_params(axis='y', which='major', labelsize=9)
 
-    # Plot data
-    ax.plot(x_as, values, linewidth=0, linestyle='solid', zorder=3)
+    platform_to_color = dict(zip(platforms,['b','r','g','m']))
+    for platform in plot0_platforms:
+        #Set values
+        values = []
+        link_data = plat_to_ld[platform]
+        for measurements in link_data.values():
+            #values.append(mean(measurements))
+            values.append(measurements[0])
 
-    # Fill area
-    ax.fill(x_as, values, 'b', alpha=0.3)
+        print platform,xlabels0
+        print platform,values
+
+        values += values[:1]
+        #values = map(lambda x :  x if x is not None else  1, values)
+
+        if values:
+            plot.plot(x_as0, values, platform_to_color[platform], linewidth=1, linestyle='solid', zorder=3)
+            plot.fill(x_as0, values, platform_to_color[platform], alpha=0.25)
+            legend = ax0.legend(plot0_platforms, loc=(0.2, -0.3),labelspacing=0.1, fontsize='small')
 
 
     # Set axes limits
-    plot.ylim(-30, -100)
+    #plot.ylim(-30, -100)
+    plot.ylim(0, 1)
+    plot.xlabel("Links")
+
+    # # Draw ytick labels to make sure they fit properly
+    # for i in range(N0):
+    #     angle_rad = i / float(N0) * 2 * pi
+    #
+    #     if angle_rad == 0:
+    #         ha, distance_ax = "center", 10
+    #     elif 0 < angle_rad < pi:
+    #         ha, distance_ax = "left", 1
+    #     elif angle_rad == pi:
+    #         ha, distance_ax = "center", 1
+    #     else:
+    #         ha, distance_ax = "right", 1
+    #
+    #     ax0.text(angle_rad, 100 + distance_ax, xlabels0[i], size=10, horizontalalignment=ha, verticalalignment="center")
 
 
-    # Draw ytick labels to make sure they fit properly
-    for i in range(N):
-        angle_rad = i / float(N) * 2 * pi
 
-        if angle_rad == 0:
-            ha, distance_ax = "center", 10
-        elif 0 < angle_rad < pi:
-            ha, distance_ax = "left", 1
-        elif angle_rad == pi:
-            ha, distance_ax = "center", 1
-        else:
-            ha, distance_ax = "right", 1
+    N1 = len(xlabels1)
+    x_as1 = [n / float(N1) * 2 * pi for n in range(N1)]
+    x_as1 += x_as1[:1]
+    # Set color of axes
+    plot.rc('axes', linewidth=0.5, edgecolor="#888888")
+    # Create polar plots
+    ax1 = plot.subplot(122, polar=True)
+    # Set clockwise rotation. That is:
+    ax1.set_theta_offset(pi / 2)
+    ax1.set_theta_direction(-1)
+    # Set position of y-labels
+    ax1.set_rlabel_position(22)
+    # Set color and linestyle of grid
+    ax1.xaxis.grid(True, color="#888888", linestyle='solid', linewidth=0.5)
+    ax1.yaxis.grid(True, color="#888888", linestyle='solid', linewidth=0.5)
+    # Set number of radial axes and set labels
+    plot.xticks(x_as1[:-1], xlabels1)
+    # Set yticks
+    #plot.yticks([-30, -40, -50, -60, -70, -80, -90], ["-30", "-40", "-50", "-60", "-70", "-80", "-90"])
+    plot.yticks([1,0.875,0.75,0.625,0.5,0.375,0.25,0.125,0], ["1","0.875","0.75","0.625","0.5","0.375","0.25","0.125","0"])
+    ax1.tick_params(axis='y', which='major', labelsize=9)
 
-        ax.text(angle_rad, 100 + distance_ax, xlabels[i], size=10, horizontalalignment=ha, verticalalignment="center")
+    for platform in plot1_platforms:
+        #Set values
+        values = []
+        link_data = plat_to_ld[platform]
+        for measurements in link_data.values():
+            #values.append(mean(measurements))
+            values.append(measurements[0])
+        values += values[:1]
+        values = map(lambda x :  x if x is not None else  0   , values)
+        #print platform,x_as0,values,platform_to_color[platform]
 
-        path = os.path.join(os.pardir,"Plots/Radar/{}/{}".format(readable_channel(channel),readable_txpower(txpower)))
-        if not os.path.exists(path):
-            os.makedirs(path)
-        if platform == "openmote-2538":
-            platform = "openmote"
-        if platform == "srf06-cc26xx":
-            platform = "sensortag"
-        filename = platform+","+readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(parameter)
+        if values:
+            plot.plot(x_as1, values, platform_to_color[platform], linewidth=1, linestyle='solid', zorder=3)
+            plot.fill(x_as1, values, platform_to_color[platform], alpha=0.25)
+            legend = ax1.legend(plot1_platforms, loc=(0.2, -0.3), labelspacing=0.1, fontsize='small')
 
-        #plot.ylabel(parameter)
-        plot.xlabel("Links")
-        #plot.figure(figsize=(10,10))
 
-    plot.title("Average {}\nChannel: {}  txpower: {}dBm\n".format(readable_param(parameter),
+    # Set axes limits
+    #plot.ylim(-30, -100)
+    plot.ylim(0, 1)
+    plot.xlabel("Links")
+
+    # # Draw ytick labels to make sure they fit properly
+    # for i in range(N1):
+    #     angle_rad = i / float(N1) * 2 * pi
+    #
+    #     if angle_rad == 0:
+    #         ha, distance_ax = "center", 10
+    #     elif 0 < angle_rad < pi:
+    #         ha, distance_ax = "left", 1
+    #     elif angle_rad == pi:
+    #         ha, distance_ax = "center", 1
+    #     else:
+    #         ha, distance_ax = "right", 1
+    #
+    #     ax1.text(angle_rad, 100 + distance_ax, xlabels1[i], size=10, horizontalalignment=ha, verticalalignment="center")
+
+
+    path = os.path.join(os.pardir,"Plots/Radar/PDR/{}".format(readable_channel(channel)))
+    if not os.path.exists(path):
+        os.makedirs(path)
+    filename = readable_channel(channel)+","+readable_txpower(txpower)+","+readable_param(parameter)
+
+    plot.tight_layout()
+    plot.title("Average {}\nChannel: {}  txpower: {}dBm\n".format("PDR",
                                                                                                 readable_channel(channel),
                                                                                                 readable_txpower(txpower)),
                                                                                                 size='large',
-                                                                                                position=(0, 1),
+                                                                                                position=(-0.1, 1.2),
                                                                                                 horizontalalignment='center',
                                                                                                 verticalalignment='center')
 
     plot.savefig(os.path.join(path,filename))
     plot.close()
-
-def parse_file_by_link(file_path):
-    information = get_information_by_path(file_path)
-
-    information["measurement_count"] = 0
-    information["temp"] = 0
-    information["hum"] = 0
-
-    #init dict (link : list)
-    information["link_data"] = OrderedDict()
-    for i in range(2,int(information["number_of_nodes"])+1):
-        information["link_data"]["1-"+str(i)] = []
-
-    with open(file_path,'r') as experiment_file:
-        for line in experiment_file:
-            #evaluate measurement and add measured value to list
-            if line.startswith("{"):
-                information["measurement_count"] += 1
-                measurement = eval(line)
-                if int(measurement["value"]) > 0:
-                    if int(measurement["sender"]) == 1:
-                        information["link_data"][measurement["sender"]+"-"+measurement["receiver"]].append(int(measurement["value"]))
-                    elif int(measurement["receiver"]) == 1:
-                        information["link_data"][measurement["receiver"]+"-"+measurement["sender"]].append(int(measurement["value"]))
-
-            elif line.startswith("Temp"):
-                line.replace(" ", "")
-                split_line = line.split("|")
-                information["temp"] = split_line[0][-3:-1]
-                information["hum"]  = split_line[1][-3:-1]
-
-
-    if information["measurement_count"] >= 250:
-        return information
-    else:
-        return None
-
-def parse_files_by_link(relevant_files,arguments):
-    information = arguments
-    if information["platform"] == "sky" or information["platform"] == "srf06-cc26xx":
-        information["number_of_nodes"] = "9"
-    else:
-        information["number_of_nodes"] = "5"
-
-    information["measurement_count"] = 0
-    information["temp"] = None
-    information["hum"] = None
-    information["packetlossrate"] = None
-
-    failed_values = 0
-    link_data = OrderedDict()
-    #init dict (link : list)
-    if information["number_of_nodes"] == "5":
-        link_data["1-2"] = []
-        link_data["1-3"] = []
-        link_data["1-4"] = []
-        link_data["1-5"] = []
-    elif information["number_of_nodes"] == "9" :
-        link_data["1-2"] = []
-        link_data["1-6"] = []
-        link_data["1-3"] = []
-        link_data["1-7"] = []
-        link_data["1-4"] = []
-        link_data["1-8"] = []
-        link_data["1-5"] = []
-        link_data["1-9"] = []
-
-    for file_path in relevant_files:
-        with open(file_path,'r') as experiment_file:
-            orientation = int(get_information_by_path(file_path)["orientation"])
-            for line in experiment_file:
-                #evaluate measurement and add measured value to list
-                if line.startswith("{"):
-                    measurement = eval(line)
-                    if  measurement["value"] != "0":
-                        information["measurement_count"] += 1
-                        #only links with sink node
-                        if measurement["sender"] == "1":
-                            receiver = equalize_node_ids(measurement["receiver"],orientation)
-                            link_data[measurement["sender"]+"-"+str(receiver)].append(int(measurement["value"]))
-                        elif measurement["receiver"] == "1":
-                            sender = equalize_node_ids(measurement["sender"],orientation)
-                            link_data[measurement["receiver"]+"-"+str(sender)].append(int(measurement["value"]))
-                    else:
-                        failed_values += 1
-
-    if information["measurement_count"]:
-        information["packetlossrate"] = int((failed_values/float(information["measurement_count"]))*100)
-    draw_boxplot(link_data,information)
-    draw_radarchart(link_data,information)
 
 def parse_arguments():
     arguments = {}
@@ -612,23 +703,19 @@ if len(sys.argv) > 1 and sys.argv[1] == "linkplots":
     arguments = parse_arguments()
 
     relevant_parameters = ["0","1","packetlossrate"] #TODO finish
-    for platform in platforms:
-        arguments["platform"] = platform
+    arguments["platform"] = None
+    arguments["parameter"] = "0"
+    chn = ["25","18","12",None]
+    tx = ["0","-3","-7","-15",None]
 
-        for channel in map(str,range(11,27))+[None]:
-            arguments["channel"] = channel
+    for channel in chn:
+        arguments["channel"] = channel
 
-            for txpower in map(str,txpowers[arguments["platform"]])+[None]:                                                 #connecting a list of txpowers
-                arguments["txpower"] = txpower
-
-                for parameter in range(2):
-                    arguments["parameter"] = str(parameter)
-                    relevant_files = get_files_by(arguments)
-                    print platform,channel,txpower,parameter,len(relevant_files)
-                    parse_files_by_link(relevant_files,arguments)
-
-
-
+        for txpower in tx:                                                 #connecting a list of txpowers
+            arguments["txpower"] = txpower
+            relevant_files = get_files_by(arguments)
+            print channel,txpower,"RSSI",len(relevant_files)
+            parse_files_by_link(relevant_files,arguments)
 
 elif len(sys.argv) > 1 and sys.argv[1] == "table":
     arguments = parse_arguments()
@@ -637,6 +724,21 @@ elif len(sys.argv) > 1 and sys.argv[1] == "table":
     stats = get_min_max_avg(relevant_files)
     print_stats_table(stats)
 
+elif len(sys.argv) > 1 and sys.argv[1] == "tables":
+    arguments = parse_arguments()
+    chn = ["25","18","12",None]
+    tx = [None]
+    for platform in platforms:
+        arguments["platform"] = platform
+        for channel in chn:
+            arguments["channel"] = channel
+            for txpwr in tx:
+                arguments["txpower"] = txpwr
+                print platform, channel, txpwr
+                relevant_files = get_files_by(arguments)
+                print "Number of relevant files:",len(relevant_files)
+                stats = get_min_max_avg(relevant_files)
+                print_stats_table(stats)
 
 elif len(sys.argv) > 1 and sys.argv[1] == "ranges":
     print_ranges()
