@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import os
 import matplotlib.pyplot as plot
@@ -97,6 +98,14 @@ def readable_orientation(orientation):
     if not orientation or orientation == "None":
         orientation = "all"
     return orientation
+
+def readable_platform(platform):
+    if platform == "openmote-cc2538":
+        return "openmote"
+    elif platform == "srf06-cc26xx":
+        return "sensortag"
+    else:
+        return platform
 
 def mean(array):
     mean = None
@@ -465,9 +474,9 @@ def draw_lineplot(storage):
                 print("plotting", platform, parameter)
                 f, pltlist = plot.subplots(2, 2, sharey=True)
                 if function == "avg":
-                    plot.suptitle("Platform:{}\n Average {} with standard deviation".format(platform,readable_param(parameter)),fontsize=20)
+                    plot.suptitle("Platform:{}\n Average {} with standard deviation".format(readable_platform(platform),readable_param(parameter)),fontsize=20)
                 else:
-                    plot.suptitle("Platform:{}\n {} {}".format(platform,function,readable_param(parameter)),fontsize=20)
+                    plot.suptitle("Platform:{}\n {} {}".format(readable_platform(platform),function,readable_param(parameter)),fontsize=20)
                 labels = range(11,27)
 
                 for i in range(0,4): #plotting the four graphs making up one figure
@@ -488,7 +497,6 @@ def draw_lineplot(storage):
                         pltlist[int(i/2)][i%2].legend(four_labels, loc='upper left')
                         pltlist[int(i/2)][i%2].grid()
                         pltlist[int(i/2)][i%2].set_xticks([8]+txpwrs+[-18])
-                        pltlist[int(i/2)][i%2].set_ylabel(readable_param(parameter))
                         pltlist[int(i/2)][i%2].set_ylim(*set_ylimits(parameter,"avg"))
                         chan_mean.append(mean(values))
 
@@ -499,16 +507,11 @@ def draw_lineplot(storage):
                 plot.subplots_adjust(left=0.05, bottom=0.10, right=0.99, top=0.90,
                             wspace=0.04, hspace=0.20)
 
-                platform_r = platform
+                platform_r = readable_platform(platform)
 
                 path = os.path.join(os.pardir,"Plots/Line")
                 if not os.path.exists(path):
                     os.makedirs(path)
-
-                if platform == "openmote-2538":
-                    platform_r = "openmote"
-                if platform == "srf06-cc26xx":
-                    platform_r = "sensortag"
 
                 filename = function+"_"+readable_param(parameter)+"_"+platform_r
 
@@ -516,6 +519,8 @@ def draw_lineplot(storage):
                 #plot.setp([a.get_yticklabels() for a in pltlist[:, 1]], visible=False)
                 pltlist[1][0].set_xlabel("Transmission powers (dBm)")
                 pltlist[1][1].set_xlabel("Transmission powers (dBm)")
+                pltlist[0][0].set_ylabel(readable_param(parameter))
+                pltlist[1][0].set_ylabel(readable_param(parameter))
 
                 plot.savefig(os.path.join(path,filename))
                 plot.close()
@@ -529,7 +534,7 @@ def draw_lineplot_reduced(storage):
 
     for function in functions:
         for parameter in parameters: #plotting one figure
-            print("plotting", platform, parameter)
+            print("plotting", parameter)
             f, pltlist = plot.subplots(2, 2, sharey=True)
             if function == "avg":
                 plot.suptitle("Average {} with standard deviation".format(readable_param(parameter)),fontsize=20)
@@ -552,10 +557,9 @@ def draw_lineplot_reduced(storage):
                     else:
                         pltlist[int(i/2)][i%2].errorbar(txpwrs,values,yerr=error,marker='o',linewidth=3.0)
 
-                    pltlist[int(i/2)][i%2].legend(four_labels, loc='upper left')
+                    pltlist[int(i/2)][i%2].legend(labels, loc='upper left')
                     pltlist[int(i/2)][i%2].grid()
                     pltlist[int(i/2)][i%2].set_xticks([8]+txpwrs+[-18])
-                    pltlist[int(i/2)][i%2].set_ylabel(readable_param(parameter))
                     pltlist[int(i/2)][i%2].set_ylim(*set_ylimits(parameter,"avg"))
                     pltlist[int(i/2)][i%2].set_title(platform)
                     chan_mean.append(mean(values))
@@ -568,16 +572,11 @@ def draw_lineplot_reduced(storage):
             plot.subplots_adjust(left=0.05, bottom=0.10, right=0.99, top=0.90,
                         wspace=0.04, hspace=0.20)
 
-            platform_r = platform
+            platform_r = readable_platform(platform)
 
             path = os.path.join(os.pardir,"Plots/Line_r")
             if not os.path.exists(path):
                 os.makedirs(path)
-
-            if platform == "openmote-2538":
-                platform_r = "openmote"
-            if platform == "srf06-cc26xx":
-                platform_r = "sensortag"
 
             filename = function+"_"+readable_param(parameter)
 
@@ -585,6 +584,8 @@ def draw_lineplot_reduced(storage):
             #plot.setp([a.get_yticklabels() for a in pltlist[:, 1]], visible=False)
             pltlist[1][0].set_xlabel("Transmission powers (dBm)")
             pltlist[1][1].set_xlabel("Transmission powers (dBm)")
+            pltlist[0][0].set_ylabel(readable_param(parameter))
+            pltlist[1][0].set_ylabel(readable_param(parameter))
 
             plot.savefig(os.path.join(path,filename))
             plot.close()
