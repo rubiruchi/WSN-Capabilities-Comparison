@@ -6,6 +6,7 @@ from collections import OrderedDict
 from datastorage import DataStorage
 from math import pi
 from copy import deepcopy
+import platform as host_platform
 
 indices = OrderedDict()
 indices["0"] = 0 #RSSI
@@ -157,17 +158,17 @@ def get_measurement_directory_path():
 
 def print_file_sizes(relevant_files):
     for filepath in relevant_files:
-        print filepath+"\t", os.path.getsize(filepath)/1000
+        print(filepath+"\t", os.path.getsize(filepath)/1000)
 
 def print_stats_table(stats):
     parameters = ("RSSI","LQI","Lines","Failed","PLR")
-    print "\t","\t".join(parameter for parameter in parameters)
+    print("\t","\t".join(parameter for parameter in parameters))
 
     if stats:
-        print "min\t" , "\t".join(str(truncate(val)) for val in stats["min"])
-        print "max\t" , "\t".join(str(truncate(val)) for val in stats["max"])
-        print "avg\t" , "\t".join(str(truncate(val)) for val in stats["avg"])
-        print "dev\t" , "\t".join(str(truncate(val)) for val in stats["dev"])
+        print("min\t" , "\t".join(str(truncate(val)) for val in stats["min"]))
+        print("max\t" , "\t".join(str(truncate(val)) for val in stats["max"]))
+        print("avg\t" , "\t".join(str(truncate(val)) for val in stats["avg"]))
+        print("dev\t" , "\t".join(str(truncate(val)) for val in stats["dev"]))
 
 def get_min_max_avg(relevant_files):
     rssi_values = []
@@ -243,7 +244,11 @@ def get_information_by_path(file_path):
     information = {}
     information["link_data"] = {}
 
-    split_file_path = file_path.split("/")
+    if host_platform.system() == "Linux":
+        split_file_path = file_path.split("/")
+    elif host_platform.system() == "Windows":
+        split_file_path = file_path.split("\\")
+
     #to make pathing work no matter where the directory is mounted use length as offset
     path_len = len(split_file_path)
     split_file_name = split_file_path[path_len-1].split(",")
@@ -254,6 +259,7 @@ def get_information_by_path(file_path):
     information["channel"] = split_file_name[1]
     information["txpower"] = split_file_name[2]
     information["parameter"] = split_file_name[3]
+
 
     return information
 
@@ -456,7 +462,7 @@ def draw_lineplot(storage):
     for platform in platforms:
         for function in functions:
             for parameter in parameters: #plotting one figure
-                print "plotting", platform, parameter
+                print("plotting", platform, parameter)
                 f, pltlist = plot.subplots(2, 2, sharey=True)
                 if function == "avg":
                     plot.suptitle("Platform:{}\n Average {} with standard deviation".format(platform,readable_param(parameter)),fontsize=20)
@@ -514,11 +520,80 @@ def draw_lineplot(storage):
                 plot.savefig(os.path.join(path,filename))
                 plot.close()
 
+def draw_lineplot_reduced(storage):
+    global platforms
+    global parameters
+    global functions
+    global txpowers
+    functions.remove("dev")
+
+    for function in functions:
+        for parameter in parameters: #plotting one figure
+            print("plotting", platform, parameter)
+            f, pltlist = plot.subplots(2, 2, sharey=True)
+            if function == "avg":
+                plot.suptitle("Average {} with standard deviation".format(readable_param(parameter)),fontsize=20)
+            else:
+                plot.suptitle("{} {}".format(function,readable_param(parameter)),fontsize=20)
+            labels = ["12","18","25","26"]
+
+            i = 0
+            for platform in platforms: #plotting the four graphs making up one figure
+                curr_channels = [storage.get(function, platform,x) for x in labels]
+                dev_channels = [storage.get("dev", platform,x) for x in labels]
+                chan_mean = []
+                for j in range(0,4): #plotting the individual lines in a graph
+                    txpwrs = curr_channels[j][parameter][0]
+                    values = curr_channels[j][parameter][1]
+                    error = dev_channels[j][parameter][1]
+
+                    if  function != "avg":
+                        pltlist[int(i/2)][i%2].plot(txpwrs,values,marker='o',linewidth=3.0)
+                    else:
+                        pltlist[int(i/2)][i%2].errorbar(txpwrs,values,yerr=error,marker='o',linewidth=3.0)
+
+                    pltlist[int(i/2)][i%2].legend(four_labels, loc='upper left')
+                    pltlist[int(i/2)][i%2].grid()
+                    pltlist[int(i/2)][i%2].set_xticks([8]+txpwrs+[-18])
+                    pltlist[int(i/2)][i%2].set_ylabel(readable_param(parameter))
+                    pltlist[int(i/2)][i%2].set_ylim(*set_ylimits(parameter,"avg"))
+                    pltlist[int(i/2)][i%2].set_title(platform)
+                    chan_mean.append(mean(values))
+
+                plot_mean =  [mean(chan_mean)]*len(txpowers[platform])
+                pltlist[int(i/2)][i%2].plot(txpowers[platform],plot_mean, linestyle='--')
+                i += 1
+
+            f.set_size_inches(17, 15)
+            plot.subplots_adjust(left=0.05, bottom=0.10, right=0.99, top=0.90,
+                        wspace=0.04, hspace=0.20)
+
+            platform_r = platform
+
+            path = os.path.join(os.pardir,"Plots/Line_r")
+            if not os.path.exists(path):
+                os.makedirs(path)
+
+            if platform == "openmote-2538":
+                platform_r = "openmote"
+            if platform == "srf06-cc26xx":
+                platform_r = "sensortag"
+
+            filename = function+"_"+readable_param(parameter)
+
+            #plot.setp([a.get_xticklabels() for a in pltlist[0, :]], visible=False)
+            #plot.setp([a.get_yticklabels() for a in pltlist[:, 1]], visible=False)
+            pltlist[1][0].set_xlabel("Transmission powers (dBm)")
+            pltlist[1][1].set_xlabel("Transmission powers (dBm)")
+
+            plot.savefig(os.path.join(path,filename))
+            plot.close()
+
 def draw_radarchart(plat_to_ld,information):
     # Plots a radar chart.
 
     channel = information["channel"]
-    print "plotting", channel
+    print("plotting", channel)
     txpower = information["txpower"]
     parameter = information["parameter"]
 
@@ -570,8 +645,8 @@ def draw_radarchart(plat_to_ld,information):
             #values.append(mean(measurements))
             values.append(measurements[0])
 
-        print platform,xlabels0
-        print platform,values
+        print(platform,xlabels0)
+        print(platform,values)
 
         values += values[:1]
         #values = map(lambda x :  x if x is not None else  1, values)
@@ -714,13 +789,13 @@ if len(sys.argv) > 1 and sys.argv[1] == "linkplots":
         for txpower in tx:                                                 #connecting a list of txpowers
             arguments["txpower"] = txpower
             relevant_files = get_files_by(arguments)
-            print channel,txpower,"RSSI",len(relevant_files)
+            print(channel,txpower,"RSSI",len(relevant_files))
             parse_files_by_link(relevant_files,arguments)
 
 elif len(sys.argv) > 1 and sys.argv[1] == "table":
     arguments = parse_arguments()
     relevant_files = get_files_by(arguments)
-    print "Number of relevant files:",len(relevant_files)
+    print("Number of relevant files:",len(relevant_files))
     stats = get_min_max_avg(relevant_files)
     print_stats_table(stats)
 
@@ -734,9 +809,9 @@ elif len(sys.argv) > 1 and sys.argv[1] == "tables":
             arguments["channel"] = channel
             for txpwr in tx:
                 arguments["txpower"] = txpwr
-                print platform, channel, txpwr
+                print(platform, channel, txpwr)
                 relevant_files = get_files_by(arguments)
-                print "Number of relevant files:",len(relevant_files)
+                print("Number of relevant files:",len(relevant_files))
                 stats = get_min_max_avg(relevant_files)
                 print_stats_table(stats)
 
@@ -747,7 +822,10 @@ elif len(sys.argv) > 1 and sys.argv[1] == "dbm":
     print("Converting sky/z1 files to dbm")
     convert_to_dbm()
 
-elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
+elif len(sys.argv) > 1 and sys.argv[1] == "id":
+    print(equalize_node_ids(sys.argv[2],sys.argv[3]))
+
+else:
     arguments = parse_arguments()
     storage = DataStorage()                                                                           # an ordered dict {"channel":[([txpowers],[values])]}
 
@@ -759,7 +837,7 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
 
             for txpower in txpowers[arguments["platform"]]:                                                 #connecting a list of txpowers
                 arguments["txpower"] = str(txpower)
-                print arguments["platform"],arguments["channel"],arguments["txpower"]
+                print(arguments["platform"],arguments["channel"],arguments["txpower"])
 
                 for parameter in indices.keys():
                     arguments["parameter"] = parameter
@@ -775,9 +853,7 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
                                 if not stats[function][index] is None:
                                     storage.store(arguments, stats[function][index], txpower)
 
-    draw_lineplot(storage)
-
-elif len(sys.argv) > 1 and sys.argv[1] == "id":
-    print equalize_node_ids(sys.argv[2],sys.argv[3])
+    #draw_lineplot(storage)
+    draw_lineplot_reduced(storage)
 
 print("Finished")
