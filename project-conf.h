@@ -12,7 +12,7 @@
 #define IEEE_ADDR_CONF_HARDCODED              1
 #define RF_BLE_CONF_ENABLED                   0
 #define CC26XX_RF_CONF_BLE_SUPPORT            0
-#define NETSTACK_CONF_RADIO        ieee_mode_driver
+#define NETSTACK_CONF_RADIO                   ieee_mode_driver
 #endif
 
 #define RIMESTATS_CONF_ENABLED 1
@@ -31,7 +31,7 @@
 
 
 #undef NETSTACK_CONF_RDC
-#define NETSTACK_CONF_RDC                   nullrdc_driver//contikimac_driver
+#define NETSTACK_CONF_RDC                   nullrdc_driver
 #undef NETSTACK_CONF_MAC
 #define NETSTACK_CONF_MAC                   nullmac_driver
 

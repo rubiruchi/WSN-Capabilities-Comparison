@@ -198,7 +198,7 @@ def throw_out_debugger():
     if highest != 0:
         devices.remove('ttyACM'+str(highest))
 
-#goes through devices list andstarts a bash subprocess. then performs login
+#goes through devices list and starts a bash subprocess. then performs login
 def subprocess_init():
     for device in devices:
         process = subprocess.Popen(['/bin/bash'], shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
@@ -214,13 +214,14 @@ def subprocess_init():
         streamreaders.append(sr)
 
 
+
 make_directory()
 devices = filter(lambda x: x.startswith('ttyUSB') or x.startswith('ttyACM'), os.listdir('/dev'))
 throw_out_debugger()
 subprocess_init()
 signal.signal(signal.SIGINT, signal_handler)
 
-#loop through configs and start described experiments
+#loop through configs and start described measurements
 sendMail("Expermient with {} started".format(platform))
 experimentstart = time()
 for config in configurations:

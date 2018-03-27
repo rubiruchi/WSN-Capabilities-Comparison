@@ -7,26 +7,6 @@
 #else
 #include "dev/uart1.h"
 #endif
-
-#if defined(z1) || defined(sky)
-#define sht11
-#define TEMPSENSOR sht11_sensor
-#include "dev/sht11/sht11-sensor.h"
-#endif
-
-// #ifdef openmote
-// #define sht21_s
-// #include "dev/button-sensor.h"
-// #include "dev/sht21.h"
-// #define TEMPSENSOR sht21
-// #endif
-
-#ifdef sensortag
-#define hdc
-#include "hdc-1000-sensor.h"
-#define TEMPSENSOR hdc_1000_sensor
-#endif
-
 /*---------------------------------------------------------------------------*/
 PROCESS(sink_process, "sink process");
 AUTOSTART_PROCESSES(&sink_process);
@@ -40,6 +20,7 @@ static uint8_t round_finished;
 static uint8_t recently_reset;
 static uint8_t reset_counter;
 /*---------------------------------------------------------------------------*/
+/* called when a message is received, prints it, copies its data and cheks if round is finished */
 static void abc_recv(){
     msg_t received_msg = *(msg_t*) packetbuf_dataptr();
 
@@ -55,27 +36,6 @@ static void abc_recv(){
         rounds_failed = 0;
         round_finished = 1;
       }
-
-}
-
-/* in °C */
-static void read_temperature(){
-  #ifdef sht11
-  sht11_init();
-  unsigned rh = sht11_humidity();
-  printf("NODE$Temp@%u | Hum@%u\n",
-  ((unsigned)(-39.60 + 0.01 * sht11_temp())),
-  ((unsigned) (-4 + 0.0405 * rh -2.8e-6 * (rh * rh))) );
-  #endif
-
-  // #ifdef sht21_s
-  // printf("NODE$Temp@%u\n", sht21.value(SHT21_READ_TEMP) / 100);
-  // #endif
-
-  #ifdef hdc
-  printf("NODE$Temp@%d | Hum@%d\n", hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_TEMP) / 100,
-  hdc_1000_sensor.value(HDC_1000_SENSOR_TYPE_HUMIDITY) / 100);
-  #endif
 }
 /*---------------------------------------------------------------------------*/
 PROCESS_THREAD(sink_process, ev, data){
@@ -104,10 +64,6 @@ PROCESS_THREAD(sink_process, ev, data){
   current_round = 0;
   reset_counter = 0;
 
-  leds_on(LEDS_GREEN);
-  #ifndef openmote
-  SENSORS_ACTIVATE(TEMPSENSOR);
-  #endif
   leds_on(LEDS_ALL);
 
   printf("NODE$Booted\n");
@@ -160,16 +116,14 @@ PROCESS_THREAD(sink_process, ev, data){
       leds_off(LEDS_ALL);
       printf("rebooting");
       watchdog_reboot();
-    }
+    }//serial
 
-    read_temperature();
-
-      /* send rounds */
-      while(current_round <= number_of_rounds){
-        printf("NODE$Round=%i\n",current_round);
-        sendmsg();
-        round_finished = 0;
-        etimer_set(&round_timer, (CLOCK_SECOND/30)*last_node_id);
+    /* send rounds */
+    while(current_round <= number_of_rounds){
+      printf("NODE$Round=%i\n",current_round);
+      sendmsg();
+      round_finished = 0;
+      etimer_set(&round_timer, (CLOCK_SECOND/30)*last_node_id);
 
         /* receive round */
       PROCESS_WAIT_EVENT_UNTIL(round_finished == 1 || etimer_expired(&round_timer) || etimer_expired(&emergency_timer));
@@ -189,51 +143,52 @@ PROCESS_THREAD(sink_process, ev, data){
          watchdog_reboot();
        }
 
-        /* wait for script to check if all nodes answered in critical round */
-        if(recently_reset == 1 && round_finished){
-          delete_link_data();
-          printf("continue or resend ?\n");
-          PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message || etimer_expired(&emergency_timer));
-          if(ev == serial_line_event_message){
-            char* str_ptr = (char*) data;
-            if(!strcmp(str_ptr,"resend")){
-              recently_reset = 1;
-            }else{
-              prep_next_round();
-              if(current_round == 0){
-                current_round++;
-              }
-              recently_reset = 0;
-            }
-          }else if(etimer_expired(&emergency_timer)){
-            leds_off(LEDS_ALL);
-            printf("rebooting");
-            watchdog_reboot();
-          }
-        }
-
-        /* channel and tx reset if rounds do not complete */
-        if(rounds_failed >= 4){
-          reset_counter++;
-          if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
-            printf("NODE$reset\n");
-            set_channel(DEFAULT_CHANNEL);
-            set_txpower(DEFAULT_TX_POWER);
-            rounds_failed = 0;
+      /* wait for script to check if all nodes answered in critical round */
+      if(recently_reset == 1 && round_finished){
+        delete_link_data();
+        printf("continue or resend ?\n");
+        PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message || etimer_expired(&emergency_timer));
+        if(ev == serial_line_event_message){
+          char* str_ptr = (char*) data;
+          if(!strcmp(str_ptr,"resend")){
             recently_reset = 1;
+          }else{
+            prep_next_round();
+            if(current_round == 0){
+              current_round++;
+            }
+            recently_reset = 0;
           }
-        }
-
-        if(reset_counter > 20){
+        }else if(etimer_expired(&emergency_timer)){
           leds_off(LEDS_ALL);
           printf("rebooting");
           watchdog_reboot();
         }
+      }
 
-      }//while num of rounds
-      printf("NODE$measurement complete\n");
-      recently_reset = 1;
-      delete_link_data();
+      /* channel and tx reset if rounds do not complete */
+      if(rounds_failed >= 4){
+        reset_counter++;
+        if(current_channel != DEFAULT_CHANNEL || current_txpower != DEFAULT_TX_POWER){
+          printf("NODE$reset\n");
+          set_channel(DEFAULT_CHANNEL);
+          set_txpower(DEFAULT_TX_POWER);
+          rounds_failed = 0;
+          recently_reset = 1;
+        }
+      }
+
+      if(reset_counter > 20){
+        leds_off(LEDS_ALL);
+        printf("rebooting");
+        watchdog_reboot();
+      }
+
+    }//while num of rounds
+
+    printf("NODE$measurement complete\n");
+    recently_reset = 1;
+    delete_link_data();
 
   } // while 1 main loop
 

@@ -556,15 +556,16 @@ def draw_lineplot(storage):
                             pltlist[int(i/2)][i%2].errorbar(txpwrs,values,yerr=error,marker='o',linewidth=3.0)
 
                         if (parameter == "0") or (parameter == "1" and platform == "openmote-cc2538"):
-                            pltlist[int(i/2)][i%2].legend(four_labels, loc='lower left')
+                            pltlist[int(i/2)][i%2].legend(four_labels, loc='lower left',fontsize = "large")
                         else:
-                            pltlist[int(i/2)][i%2].legend(four_labels, loc='upper left')
+                            pltlist[int(i/2)][i%2].legend(four_labels, loc='upper left',fontsize = "large")
 
                         pltlist[int(i/2)][i%2].grid()
                         pltlist[int(i/2)][i%2].set_xlim(6,-16)
                         pltlist[int(i/2)][i%2].set_xticks(txpwrs)
                         pltlist[int(i/2)][i%2].set_ylim(*set_ylimits(parameter,"avg"))
                         chan_mean.append(mean(values))
+                        pltlist[int(i/2)][i%2].tick_params(labelsize = "x-large")
 
                     plot_mean =  [mean(chan_mean)]*len(txpowers[platform])
                     pltlist[int(i/2)][i%2].plot(txpowers[platform],plot_mean, linestyle='--')
@@ -625,14 +626,17 @@ def draw_lineplot_reduced(storage):
                         pltlist[int(i/2)][i%2].errorbar(txpwrs,values,yerr=error,marker='o',linewidth=3.0)
 
                     if parameter == "0" or (parameter == "1" and platform == "openmote-cc2538"):
-                        pltlist[int(i/2)][i%2].legend(labels, loc='lower left')
+                        pltlist[int(i/2)][i%2].legend(labels, loc='lower left', fontsize = "large")
                     else:
-                        pltlist[int(i/2)][i%2].legend(labels, loc='upper left')
+                        pltlist[int(i/2)][i%2].legend(labels, loc='upper left', fontsize = "large")
                     pltlist[int(i/2)][i%2].grid()
                     pltlist[int(i/2)][i%2].set_xlim(6,-16)
                     pltlist[int(i/2)][i%2].set_xticks(txpwrs)
                     pltlist[int(i/2)][i%2].set_ylim(*set_ylimits(parameter,"avg"))
-                    pltlist[int(i/2)][i%2].set_title(readable_platform(platform))
+                    pltlist[int(i/2)][i%2].set_title(readable_platform(platform), fontsize = "x-large")
+                    pltlist[int(i/2)][i%2].tick_params(labelsize = "x-large")
+                    #plt.setp(ax.get_xticklabels(), rotation='vertical', fontsize=14)
+
                     #pltlist[int(i/2)][i%2].invert_xaxis()
                     chan_mean.append(mean(values))
 
@@ -944,6 +948,8 @@ elif len(sys.argv) > 1 and sys.argv[1] == "lineplots":
 
     for platform in platforms:
         arguments["platform"] = platform
+
+        rel_chans = ["12","18","25","26"]
 
         for channel in range(11,27):
             arguments["channel"] = str(channel)

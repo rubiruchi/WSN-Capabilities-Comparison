@@ -30,46 +30,46 @@ static void abc_recv(){
     message.link_param   != received_msg.link_param){
       printf("new measurement: deleting data\n");
       delete_link_data();
-    }
+  }
 
-    last_node_id = received_msg.last_node;
-    next_channel = received_msg.next_channel;
-    next_txpower = received_msg.next_txpower;
-    message.next_channel = next_channel;
-    message.next_txpower = next_txpower;
-    message.link_param = received_msg.link_param;
+  last_node_id = received_msg.last_node;
+  next_channel = received_msg.next_channel;
+  next_txpower = received_msg.next_txpower;
+  message.next_channel = next_channel;
+  message.next_txpower = next_txpower;
+  message.link_param = received_msg.link_param;
 
-    /* put content of recieved msg and link readings into own msg */
-    fill_link_data(received_msg.node_id,
-      received_msg.last_node,
-      packetbuf_attr(PACKETBUF_ATTR_RSSI),
-      packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
-      received_msg.link_param);
+  /* put content of recieved msg and link readings into own msg */
+  fill_link_data(received_msg.node_id,
+    received_msg.last_node,
+    packetbuf_attr(PACKETBUF_ATTR_RSSI),
+    packetbuf_attr(PACKETBUF_ATTR_LINK_QUALITY),
+    received_msg.link_param);
 
-      /* in case node works as additional sink */
-      print_link_data(&received_msg);
+  /* in case node works as additional sink */
+  print_link_data(&received_msg);
 
-      /* upwards sending*/
-      if(received_msg.node_id == node_id -1){
-        etimer_stop(&lost_link_timer);
-        ro_timer_set = 0;
-        sendmsg();
-        prep_next_round();
-      }
+  /* upwards sending*/
+  if(received_msg.node_id == node_id -1){
+    etimer_stop(&lost_link_timer);
+    ro_timer_set = 0;
+    sendmsg();
+    prep_next_round();
+  }
 
-      /* lost link detection upwards sending*/
-      if(received_msg.node_id < node_id-1){
-        int wait_time = (node_id - received_msg.node_id);
-        etimer_set(&lost_link_timer, (CLOCK_SECOND/30) * wait_time);
-        lost_link_timer.p = &node_process;
-        ro_timer_set = 1;
-      }
+  /* lost link detection upwards sending*/
+  if(received_msg.node_id < node_id-1){
+    int wait_time = (node_id - received_msg.node_id);
+    etimer_set(&lost_link_timer, (CLOCK_SECOND/30) * wait_time);
+    lost_link_timer.p = &node_process;
+    ro_timer_set = 1;
+  }
 
-      etimer_set(&emergency_timer, (CLOCK_SECOND/30)*last_node_id*4); //times 4 because sink will resend a round 4 times before resetting channel
-      em_timer_set = 1;
-      emergency_timer.p = &node_process;
+  etimer_set(&emergency_timer, (CLOCK_SECOND/30)*last_node_id*4); //times 4 because sink will resend a round 4 times before resetting channel
+  em_timer_set = 1;
+  emergency_timer.p = &node_process;
 
-    }
+}
     /*---------------------------------------------------------------------------*/
 
     PROCESS_THREAD(node_process, ev, data){

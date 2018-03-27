@@ -14,10 +14,7 @@ class NonBlockingStreamReader:
                 line = stream.readline()
                 if line and line.startswith('NODE$') and line.endswith('\n'):
                     line = line.split('$')[1]
-                    #print("read:"+ line.rstrip())
                     queue.put(line)
-                #else:
-                    #print("nbsr discarded: "+line.rstrip())
 
         self._t = Thread(target = _populateQueue,
                 args = (self._s, self._q))

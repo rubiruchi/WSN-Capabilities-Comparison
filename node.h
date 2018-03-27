@@ -6,6 +6,11 @@
 #include "net/netstack.h"
 #include "net/packetbuf.h"
 #include "dev/radio.h"
+#include "net/rime/rime.h"
+#include "net/rime/rimestats.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "dev/leds.h"
 
 #if defined(sky) || defined(z1) || defined(sensortag)
 #include "sys/node-id.h"
@@ -21,22 +26,12 @@
 #endif
 
 #ifdef openmote
-  #ifdef IEEE_ADDR_NODE_ID
-    static unsigned short node_id = IEEE_ADDR_NODE_ID;
-  #else
-    static unsigned short node_id = 0;
-  #endif
+#ifdef IEEE_ADDR_NODE_ID
+static unsigned short node_id = IEEE_ADDR_NODE_ID;
+#else
+static unsigned short node_id = 0;
 #endif
-
-#include "net/rime/rime.h"
-#include "net/rime/rimestats.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "dev/leds.h"
-
-
+#endif
 /*---------------------------------------------------------------------------*/
 #define UDP_BROADCAST_PORT 5678      // UDP port of broadcast connection
 #define UDP_IP_BUF    ((struct uip_udpip_hdr* ) &uip_buf[UIP_LLH_LEN])
@@ -93,6 +88,7 @@ static void set_txpower(int power){
   NETSTACK_RADIO.set_value(RADIO_PARAM_TXPOWER, power);
 }
 
+/* print link data of a message */
 static void print_link_data_only_sink(msg_t* msg){
   printf("NODE$%i:%i:%i:",msg->node_id,get_channel(), get_txpower());
   printf("1:");
@@ -126,7 +122,7 @@ static void print_link_data(msg_t* msg){
   }
 }
 
-/* print message, broadcast message, delete message*/
+/* broadcast message, print message, delete message*/
 static void sendmsg(){
   leds_toggle(LEDS_RED);
   packetbuf_copyfrom(&message,sizeof(message));
@@ -169,15 +165,13 @@ static void fill_link_data(uint8_t received_node_id, uint8_t last_node, char rec
 
 /*change channel and/or txpower for next round if necessary */
 static void prep_next_round(){
-if(next_channel != 0 && (get_channel() != next_channel)){
-  set_channel(next_channel);
-}
+  if(next_channel != 0 && (get_channel() != next_channel)){
+    set_channel(next_channel);
+  }
 
-if(next_txpower != 0 && (get_txpower() != next_txpower)){
-  set_txpower(next_txpower);
-}
-
-
+  if(next_txpower != 0 && (get_txpower() != next_txpower)){
+    set_txpower(next_txpower);
+  }
 }
 
 /*---------------------------------------------------------------------------*/
